@@ -29,6 +29,7 @@ import { useFirestore } from '@/firebase';
 import { collection, addDoc } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useRole } from '@/hooks/useRole';
 
 
 function AddStaffDialog() {
@@ -152,6 +153,7 @@ function StaffCard({ member }: { member: Staff }) {
 
 export default function StaffPage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const { role } = useRole();
 
   const filteredStaff = staff.filter(
     member =>
@@ -168,7 +170,7 @@ export default function StaffPage() {
           </h1>
           <p className="text-muted-foreground">Manage all staff member profiles</p>
         </div>
-        <AddStaffDialog />
+        {role === 'admin' && <AddStaffDialog />}
       </div>
 
       <div className="mb-6">
@@ -199,7 +201,7 @@ export default function StaffPage() {
                 ? 'No staff members match your search criteria.'
                 : 'Add your first staff member to get started.'}
             </p>
-            {!searchQuery && (
+            {!searchQuery && role === 'admin' && (
               <div className="mt-4">
                 <AddStaffDialog />
               </div>
