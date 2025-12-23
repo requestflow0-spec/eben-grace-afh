@@ -1,12 +1,6 @@
 'use client';
 
 import { useState, use } from 'react';
-import {
-  useParams,
-  usePathname,
-  useRouter,
-  useSearchParams,
-} from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -53,12 +47,17 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export default function PatientDetailPage({ params }: { params: { id: string } }) {
+export default function PatientDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const { id } = use(params);
   const [isEditing, setIsEditing] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
-  
-  const patient = patients.find(p => p.id === params.id);
+
+  const patient = patients.find(p => p.id === id);
 
   if (!patient) {
     return (
@@ -73,9 +72,11 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
       </div>
     );
   }
-  
+
   const age = differenceInYears(new Date(), parseISO(patient.dateOfBirth));
-  const assignedStaff = staff.filter(s => s.role === 'Nurse' || s.role === 'Doctor').slice(0, 1);
+  const assignedStaff = staff
+    .filter(s => s.role === 'Nurse' || s.role === 'Doctor')
+    .slice(0, 1);
   const availableStaff = staff.filter(s => s.role !== 'Admin');
 
   return (
@@ -90,7 +91,9 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
           <h1 className="text-3xl font-bold tracking-tight font-headline">
             {patient.name}
           </h1>
-          <p className="text-muted-foreground">Patient profile and care records</p>
+          <p className="text-muted-foreground">
+            Patient profile and care records
+          </p>
         </div>
         <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
           <Edit className="mr-2 h-4 w-4" />
@@ -116,7 +119,12 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2">
                       <Label htmlFor="name">Full Name</Label>
-                      <Input id="name" name="name" defaultValue={patient.name} required />
+                      <Input
+                        id="name"
+                        name="name"
+                        defaultValue={patient.name}
+                        required
+                      />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="date_of_birth">Date of Birth</Label>
@@ -127,12 +135,18 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                         defaultValue={patient.dateOfBirth}
                       />
                     </div>
-                     <div className="space-y-2">
+                    <div className="space-y-2">
                       <Label htmlFor="disability_type">Disability Type</Label>
-                      <Input id="disability_type" name="disability_type" defaultValue={patient.disabilityType} />
+                      <Input
+                        id="disability_type"
+                        name="disability_type"
+                        defaultValue={patient.disabilityType}
+                      />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="emergency_contact_name">Emergency Contact</Label>
+                      <Label htmlFor="emergency_contact_name">
+                        Emergency Contact
+                      </Label>
                       <Input
                         id="emergency_contact_name"
                         name="emergency_contact_name"
@@ -140,7 +154,9 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                       />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="emergency_contact_phone">Emergency Phone</Label>
+                      <Label htmlFor="emergency_contact_phone">
+                        Emergency Phone
+                      </Label>
                       <Input
                         id="emergency_contact_phone"
                         name="emergency_contact_phone"
@@ -157,17 +173,21 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                       rows={3}
                     />
                   </div>
-                   <div className="space-y-2">
-                      <Label htmlFor="notes">Notes</Label>
-                      <Textarea
-                        id="notes"
-                        name="notes"
-                        defaultValue={patient.notes}
-                        rows={2}
-                      />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes">Notes</Label>
+                    <Textarea
+                      id="notes"
+                      name="notes"
+                      defaultValue={patient.notes}
+                      rows={2}
+                    />
+                  </div>
                   <div className="flex justify-end gap-3">
-                    <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsEditing(false)}
+                    >
                       Cancel
                     </Button>
                     <Button type="submit">Save Changes</Button>
@@ -190,15 +210,21 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                         <FileText className="h-5 w-5 text-accent-foreground" />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Disability Type</p>
-                        <p className="font-medium">{patient.disabilityType || 'Not specified'}</p>
+                        <p className="text-sm text-muted-foreground">
+                          Disability Type
+                        </p>
+                        <p className="font-medium">
+                          {patient.disabilityType || 'Not specified'}
+                        </p>
                       </div>
                     </div>
                   </div>
-                  
+
                   {patient.careNeeds && (
                     <div>
-                      <p className="text-sm text-muted-foreground mb-1">Care Needs</p>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Care Needs
+                      </p>
                       <p className="text-foreground">{patient.careNeeds}</p>
                     </div>
                   )}
@@ -208,15 +234,21 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                     <div>
                       <p className="text-sm font-medium">Emergency Contact</p>
                       <p className="text-sm text-muted-foreground">
-                        {patient.emergencyContact.name} ({patient.emergencyContact.relation}) &bull; {patient.emergencyContact.phone}
+                        {patient.emergencyContact.name} (
+                        {patient.emergencyContact.relation}) &bull;{' '}
+                        {patient.emergencyContact.phone}
                       </p>
                     </div>
                   </div>
 
                   {patient.notes && (
                     <div>
-                      <p className="text-sm text-muted-foreground mb-1">Additional Notes</p>
-                      <p className="text-foreground text-sm">{patient.notes}</p>
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Additional Notes
+                      </p>
+                      <p className="text-foreground text-sm">
+                        {patient.notes}
+                      </p>
                     </div>
                   )}
                 </div>
@@ -238,25 +270,37 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
             <CardContent>
               {tasks && tasks.length > 0 ? (
                 <div className="space-y-2">
-                  {tasks.filter(t => t.patientName === patient.name).slice(0,5).map(task => (
-                    <div
-                      key={task.id}
-                      className="flex items-center justify-between p-3 rounded-lg border"
-                    >
-                      <div className="flex items-center gap-3">
-                        <Calendar className="h-4 w-4 text-muted-foreground" />
-                        <div>
-                          <p className="font-medium text-sm">{format(new Date(task.dueDate), "EEEE, MMMM d, yyyy")}</p>
-                          <p className="text-xs text-muted-foreground">
-                            By {staff.find(s => s.role === 'Nurse')?.name || 'Unknown'}
-                          </p>
+                  {tasks
+                    .filter(t => t.patientName === patient.name)
+                    .slice(0, 5)
+                    .map(task => (
+                      <div
+                        key={task.id}
+                        className="flex items-center justify-between p-3 rounded-lg border"
+                      >
+                        <div className="flex items-center gap-3">
+                          <Calendar className="h-4 w-4 text-muted-foreground" />
+                          <div>
+                            <p className="font-medium text-sm">
+                              {format(
+                                new Date(task.dueDate),
+                                'EEEE, MMMM d, yyyy'
+                              )}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              By{' '}
+                              {staff.find(s => s.role === 'Nurse')?.name ||
+                                'Unknown'}
+                            </p>
+                          </div>
                         </div>
+                        <Badge
+                          variant={task.completed ? 'secondary' : 'default'}
+                        >
+                          {task.completed ? 'Completed' : 'Pending'}
+                        </Badge>
                       </div>
-                      <Badge variant={task.completed ? 'secondary' : 'default'}>
-                        {task.completed ? 'Completed' : 'Pending'}
-                      </Badge>
-                    </div>
-                  ))}
+                    ))}
                 </div>
               ) : (
                 <div className="text-center py-8 text-muted-foreground">
@@ -272,7 +316,10 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base">Assigned Staff</CardTitle>
-              <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+              <Dialog
+                open={showAssignDialog}
+                onOpenChange={setShowAssignDialog}
+              >
                 <DialogTrigger asChild>
                   <Button variant="ghost" size="icon">
                     <UserPlus className="h-4 w-4" />
@@ -286,7 +333,10 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                     </DialogDescription>
                   </DialogHeader>
                   <div className="space-y-4 py-4">
-                    <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+                    <Select
+                      value={selectedStaffId}
+                      onValueChange={setSelectedStaffId}
+                    >
                       <SelectTrigger>
                         <SelectValue placeholder="Select staff member" />
                       </SelectTrigger>
@@ -299,7 +349,10 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                       </SelectContent>
                     </Select>
                     <div className="flex justify-end gap-3">
-                      <Button variant="outline" onClick={() => setShowAssignDialog(false)}>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowAssignDialog(false)}
+                      >
                         Cancel
                       </Button>
                       <Button
@@ -322,13 +375,15 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                       className="flex items-center justify-between p-2 rounded-lg bg-secondary/50"
                     >
                       <div className="flex items-center gap-2">
-                         <Avatar className="h-8 w-8">
-                            <AvatarImage src={s.avatarUrl} alt={s.name} data-ai-hint={s.avatarHint} />
-                            <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
+                        <Avatar className="h-8 w-8">
+                          <AvatarImage
+                            src={s.avatarUrl}
+                            alt={s.name}
+                            data-ai-hint={s.avatarHint}
+                          />
+                          <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
                         </Avatar>
-                        <span className="text-sm font-medium">
-                          {s.name}
-                        </span>
+                        <span className="text-sm font-medium">{s.name}</span>
                       </div>
                       <Button
                         variant="ghost"
@@ -347,29 +402,40 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
               )}
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardHeader className="pb-2">
-                <CardTitle className="text-base">Activity Summary</CardTitle>
+              <CardTitle className="text-base">Activity Summary</CardTitle>
             </CardHeader>
             <CardContent>
-                <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Total Records</span>
-                        <span className="font-semibold">{tasks.filter(t => t.patientName === patient.name).length}</span>
-                    </div>
-                     <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Profile Created</span>
-                        <span className="text-sm">{format(new Date(patient.createdAt), 'MMM d, yyyy')}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Last Updated</span>
-                        <span className="text-sm">{format(new Date(patient.updatedAt), 'MMM d, yyyy')}</span>
-                    </div>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">
+                    Total Records
+                  </span>
+                  <span className="font-semibold">
+                    {tasks.filter(t => t.patientName === patient.name).length}
+                  </span>
                 </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">
+                    Profile Created
+                  </span>
+                  <span className="text-sm">
+                    {format(new Date(patient.createdAt), 'MMM d, yyyy')}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-sm text-muted-foreground">
+                    Last Updated
+                  </span>
+                  <span className="text-sm">
+                    {format(new Date(patient.updatedAt), 'MMM d, yyyy')}
+                  </span>
+                </div>
+              </div>
             </CardContent>
-        </Card>
-
+          </Card>
         </div>
       </div>
     </div>
