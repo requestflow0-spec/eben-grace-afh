@@ -40,9 +40,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { patients } from '@/lib/data';
-import { Loader2, Wand2, RefreshCw, FileText } from 'lucide-react';
+import { Loader2, Wand2, RefreshCw, FileText, Bed } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { ResponsiveContainer, LineChart, CartesianGrid, XAxis, YAxis, Tooltip, Line } from 'recharts';
 
 const formSchema = z.object({
   patientId: z.string().min(1, 'Please select a patient.'),
@@ -52,6 +53,12 @@ const formSchema = z.object({
 });
 
 type FormValues = z.infer<typeof formSchema>;
+
+const sleepData = Array.from({ length: 30 }, (_, i) => ({
+  day: `Day ${i + 1}`,
+  hours: 6 + Math.random() * 3, // Random sleep between 6 and 9 hours
+  interruptions: Math.floor(Math.random() * 4),
+}));
 
 export default function ReportsPage() {
   const [reportResult, setReportResult] = useState<GenerateProgressReportOutput | null>(null);
@@ -225,38 +232,12 @@ export default function ReportsPage() {
       </div>
 
       <div className="lg:col-span-3 space-y-6">
-        {reportResult && (
-          <Card>
-            <CardHeader>
-              <div className="flex justify-between items-start">
-                <div>
-                  <CardTitle>Generated Report</CardTitle>
-                  <CardDescription>{reportResult.progress}</CardDescription>
-                </div>
-                <Button variant="ghost" size="icon" onClick={() => form.requestSubmit()}>
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <p className="whitespace-pre-wrap text-sm">{reportResult.report}</p>
-            </CardContent>
-            <CardFooter>
-              <Button onClick={handleSuggestImprovements} disabled={isSuggesting}>
-                {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
-                Suggest Improvements
-              </Button>
-            </CardFooter>
-          </Card>
-        )}
-        {suggestions && (
-          <Alert>
-            <Wand2 className="h-4 w-4" />
-            <AlertTitle>AI Suggestions</AlertTitle>
-            <AlertDescription className="whitespace-pre-wrap">
-              {suggestions.suggestions}
-            </AlertDescription>
-          </Alert>
+        {isGenerating && (
+          <div className="flex flex-col items-center justify-center text-center p-10 border-2 border-dashed rounded-lg h-full">
+            <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
+            <h3 className="mt-4 text-lg font-semibold">Generating Report...</h3>
+            <p className="mt-1 text-sm text-muted-foreground">The AI is crafting the progress report. Please wait.</p>
+          </div>
         )}
         {!reportResult && !isGenerating && (
           <div className="flex flex-col items-center justify-center text-center p-10 border-2 border-dashed rounded-lg h-full">
@@ -265,12 +246,63 @@ export default function ReportsPage() {
             <p className="mt-1 text-sm text-muted-foreground">Fill out the form to generate a new report.</p>
           </div>
         )}
-        {isGenerating && (
-          <div className="flex flex-col items-center justify-center text-center p-10 border-2 border-dashed rounded-lg h-full">
-            <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
-            <h3 className="mt-4 text-lg font-semibold">Generating Report...</h3>
-            <p className="mt-1 text-sm text-muted-foreground">The AI is crafting the progress report. Please wait.</p>
-          </div>
+        {reportResult && (
+          <>
+            <Card>
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div>
+                    <CardTitle>Generated Report</CardTitle>
+                    <CardDescription>{reportResult.progress}</CardDescription>
+                  </div>
+                  <Button variant="ghost" size="icon" onClick={() => form.requestSubmit()}>
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap text-sm">{reportResult.report}</p>
+              </CardContent>
+              <CardFooter>
+                <Button onClick={handleSuggestImprovements} disabled={isSuggesting}>
+                  {isSuggesting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Wand2 className="mr-2 h-4 w-4" />}
+                  Suggest Improvements
+                </Button>
+              </CardFooter>
+            </Card>
+            
+            {suggestions && (
+              <Alert>
+                <Wand2 className="h-4 w-4" />
+                <AlertTitle>AI Suggestions</AlertTitle>
+                <AlertDescription className="whitespace-pre-wrap">
+                  {suggestions.suggestions}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Monthly Sleep Log</CardTitle>
+                <CardDescription>
+                  Tracking sleep patterns over the last 30 days.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={250}>
+                  <LineChart data={sleepData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="day" fontSize={12} />
+                    <YAxis yAxisId="left" label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} fontSize={12} />
+                    <YAxis yAxisId="right" orientation="right" label={{ value: 'Interruptions', angle: -90, position: 'insideRight' }} fontSize={12} />
+                    <Tooltip />
+                    <Line yAxisId="left" type="monotone" dataKey="hours" stroke="hsl(var(--primary))" name="Sleep Hours" />
+                    <Line yAxisId="right" type="monotone" dataKey="interruptions" stroke="hsl(var(--accent))" name="Interruptions" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </>
         )}
       </div>
     </div>

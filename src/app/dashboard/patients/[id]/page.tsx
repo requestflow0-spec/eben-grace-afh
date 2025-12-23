@@ -17,8 +17,14 @@ import {
   User,
   UserPlus,
   X,
+  ChevronLeft,
+  ChevronRight,
+  Moon,
+  Sun,
+  Save,
+  AlertCircle,
 } from 'lucide-react';
-import { format, differenceInYears, parseISO } from 'date-fns';
+import { format, differenceInYears, parseISO, addDays, subDays, isSameDay } from 'date-fns';
 import {
   BarChart,
   Bar,
@@ -61,18 +67,114 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { cn } from '@/lib/utils';
 
-const sleepData = Array.from({ length: 30 }, (_, i) => ({
-  day: `Day ${i + 1}`,
-  hours: 6 + Math.random() * 3, // Random sleep between 6 and 9 hours
-  interruptions: Math.floor(Math.random() * 4),
-}));
 
 const behaviorData = Array.from({ length: 30 }, (_, i) => ({
   day: `Day ${i + 1}`,
   positive: Math.floor(Math.random() * 5),
   negative: Math.floor(Math.random() * 3),
 }));
+
+type SleepStatus = 'awake' | 'asleep';
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+function SleepLogViewer() {
+    const [selectedDate, setSelectedDate] = useState(new Date());
+    const [hours, setHours] = useState<SleepStatus[]>(Array(24).fill('awake'));
+    const [notes, setNotes] = useState('');
+    const [isDirty, setIsDirty] = useState(false);
+
+    const handleHourToggle = (hour: number) => {
+        const newHours = [...hours];
+        newHours[hour] = newHours[hour] === 'asleep' ? 'awake' : 'asleep';
+        setHours(newHours);
+        setIsDirty(true);
+    };
+
+    const handleSave = () => {
+        setIsDirty(false);
+        // In a real app, you would save this data.
+    };
+    
+    return (
+        <div className="space-y-6">
+            <div className="flex items-center justify-between">
+                <Button variant="outline" size="icon" onClick={() => setSelectedDate(d => subDays(d, 1))}>
+                    <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <div className="text-center">
+                    <h3 className="font-semibold">{format(selectedDate, 'EEEE, MMMM d, yyyy')}</h3>
+                    <p className="text-xs text-muted-foreground">
+                        {isSameDay(selectedDate, new Date()) ? 'Today' : ''}
+                    </p>
+                </div>
+                <Button variant="outline" size="icon" onClick={() => setSelectedDate(d => addDays(d, 1))}>
+                    <ChevronRight className="h-4 w-4" />
+                </Button>
+            </div>
+
+            <div className="space-y-4">
+                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                    {HOURS.map((hour) => {
+                        const isAsleep = hours[hour] === 'asleep';
+                        return (
+                            <div
+                                key={hour}
+                                className={cn(
+                                    "flex flex-col items-center justify-center p-2 rounded-lg border cursor-pointer transition-colors",
+                                    isAsleep
+                                        ? "bg-primary/10 border-primary/50"
+                                        : "bg-secondary hover:bg-secondary/80",
+                                    "hover:border-primary/50"
+                                )}
+                                onClick={() => handleHourToggle(hour)}
+                            >
+                                <div className="text-xs font-mono text-muted-foreground mb-1">
+                                    {format(new Date(new Date().setHours(hour, 0)), 'ha')}
+                                </div>
+                                {isAsleep ? (
+                                    <Moon className="h-5 w-5 text-primary" />
+                                ) : (
+                                    <Sun className="h-5 w-5 text-yellow-500" />
+                                )}
+                                <span className="text-[10px] uppercase font-bold mt-1 tracking-wider">
+                                    {isAsleep ? 'Sleep' : 'Awake'}
+                                </span>
+                            </div>
+                        );
+                    })}
+                </div>
+
+                <div className="flex items-start gap-2 text-sm text-muted-foreground p-3 bg-muted/50 rounded-lg">
+                    <AlertCircle className="h-4 w-4 mt-0.5" />
+                    <p>Tap on any hour block to toggle between Sleep and Awake states.</p>
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <Label htmlFor="sleep-notes">Daily Notes</Label>
+                <Textarea
+                    id="sleep-notes"
+                    value={notes}
+                    onChange={(e) => {
+                        setNotes(e.target.value);
+                        setIsDirty(true);
+                    }}
+                    placeholder="Any notes about sleep quality or disturbances..."
+                    rows={3}
+                />
+            </div>
+
+            <div className="flex justify-end pt-2">
+                <Button onClick={handleSave} disabled={!isDirty}>
+                    {false ? 'Saving...' : 'Save Sleep Log'}
+                    {isDirty && <Save className="ml-2 h-4 w-4" />}
+                </Button>
+            </div>
+        </div>
+    );
+}
 
 export default function PatientDetailPage({
   params,
@@ -363,23 +465,13 @@ export default function PatientDetailPage({
             <TabsContent value="sleep-log">
               <Card>
                 <CardHeader>
-                  <CardTitle>Monthly Sleep Log</CardTitle>
+                  <CardTitle>Daily Sleep Log</CardTitle>
                   <CardDescription>
-                    Tracking sleep patterns over the last 30 days.
+                    Track sleep patterns for each hour of the day.
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <LineChart data={sleepData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="day" fontSize={12} />
-                      <YAxis yAxisId="left" label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} fontSize={12} />
-                      <YAxis yAxisId="right" orientation="right" label={{ value: 'Interruptions', angle: -90, position: 'insideRight' }} fontSize={12} />
-                      <Tooltip />
-                      <Line yAxisId="left" type="monotone" dataKey="hours" stroke="hsl(var(--primary))" name="Sleep Hours" />
-                      <Line yAxisId="right" type="monotone" dataKey="interruptions" stroke="hsl(var(--accent))" name="Interruptions" />
-                    </LineChart>
-                  </ResponsiveContainer>
+                  <SleepLogViewer />
                 </CardContent>
               </Card>
             </TabsContent>
