@@ -42,53 +42,52 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { Checkbox } from '@/components/ui/checkbox';
 
-function DateTimePicker() {
-  const [date, setDate] = useState<Date | undefined>(new Date());
+const timeOptions = Array.from({ length: 24 * 2 }, (_, i) => {
+  const hour = Math.floor(i / 2);
+  const minute = i % 2 === 0 ? '00' : '30';
+  const formattedHour = hour.toString().padStart(2, '0');
+  return `${formattedHour}:${minute}`;
+});
+
+const daysOfWeek = [
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+  'Sunday',
+];
+
+function ScheduleEditor() {
+  const [selectedDays, setSelectedDays] = useState<string[]>(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday']);
   const [startTime, setStartTime] = useState('09:00');
   const [endTime, setEndTime] = useState('17:00');
 
-  const timeOptions = Array.from({ length: 24 * 2 }, (_, i) => {
-    const hour = Math.floor(i / 2);
-    const minute = i % 2 === 0 ? '00' : '30';
-    const formattedHour = hour.toString().padStart(2, '0');
-    return `${formattedHour}:${minute}`;
-  });
+  const handleDayToggle = (day: string) => {
+    setSelectedDays(prev =>
+      prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  };
 
   return (
-    <div className="space-y-4">
-      <div>
-        <Label>Date</Label>
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant={'outline'}
-              className={cn(
-                'w-full justify-start text-left font-normal',
-                !date && 'text-muted-foreground'
-              )}
-            >
-              <CalendarIcon className="mr-2 h-4 w-4" />
-              {date ? format(date, 'PPP') : <span>Pick a date</span>}
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-auto p-0">
-            <Calendar
-              mode="single"
-              selected={date}
-              onSelect={setDate}
-              initialFocus
-            />
-          </PopoverContent>
-        </Popover>
+    <div className="space-y-6">
+       <div>
+        <Label>Working Days</Label>
+        <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 mt-2">
+            {daysOfWeek.map(day => (
+                <div key={day} className="flex items-center space-x-2">
+                    <Checkbox
+                        id={`day-${day}`}
+                        checked={selectedDays.includes(day)}
+                        onCheckedChange={() => handleDayToggle(day)}
+                    />
+                    <Label htmlFor={`day-${day}`} className="font-normal text-sm">{day}</Label>
+                </div>
+            ))}
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-4">
         <div>
@@ -237,9 +236,9 @@ export default function StaffDetailPage({
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <div>
-              <CardTitle>Schedule</CardTitle>
+              <CardTitle>Weekly Schedule</CardTitle>
               <CardDescription>
-                Weekly schedule for this staff member.
+                Working days and hours for this staff member.
               </CardDescription>
             </div>
             <Dialog>
@@ -254,7 +253,7 @@ export default function StaffDetailPage({
                   <DialogTitle>Edit Schedule</DialogTitle>
                 </DialogHeader>
                 <div className="py-4">
-                  <DateTimePicker />
+                  <ScheduleEditor />
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>
