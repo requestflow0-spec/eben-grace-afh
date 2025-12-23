@@ -22,50 +22,97 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, Mail, Users } from 'lucide-react';
+import { Plus, Search, Mail, Users, KeyRound } from 'lucide-react';
 import { staff, type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore } from '@/firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { useFirestore, useAuth } from '@/firebase';
+import { createUserWithEmailAndPassword } from 'firebase/auth';
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useRole } from '@/hooks/useRole';
 
-
 function AddStaffDialog() {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const { toast } = useToast();
   const firestore = useFirestore();
+  const mainAuth = useAuth(); // The primary auth instance for the app
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore) return;
+    if (!firestore || !mainAuth) return;
     setIsSubmitting(true);
 
-    const invitationsRef = collection(firestore, 'invitations');
-    addDoc(invitationsRef, {
-      email: email,
-      role: 'staff',
-      createdAt: new Date().toISOString(),
-    }).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-          path: invitationsRef.path,
-          operation: 'create',
-          requestResourceData: { email, role: 'staff' },
+    try {
+      // This is a temporary auth instance for creating the user.
+      // It's a workaround because we can't have two users logged in at once.
+      // In a real-world scenario, this would be handled by a backend function.
+      const { initializeApp } = await import('firebase/app');
+      const { getAuth } = await import('firebase/auth');
+      const tempApp = initializeApp({
+          apiKey: mainAuth.app.options.apiKey,
+          authDomain: mainAuth.app.options.authDomain,
+          projectId: mainAuth.app.options.projectId,
+      }, 'temp-staff-creation');
+      const tempAuth = getAuth(tempApp);
+
+      const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
+      const user = userCredential.user;
+
+      const newStaffDoc = {
+        id: user.uid,
+        name: name,
+        role: 'Staff',
+        email: email,
+        certifications: ['Basic Care'],
+        schedule: 'Mon-Fri, 9am-5pm',
+        available: true,
+        avatarUrl: `https://picsum.photos/seed/${user.uid}/200/200`,
+        avatarHint: 'person professional',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        assignedPatients: [],
+      };
+      
+      const staffDocRef = doc(firestore, 'staff', user.uid);
+      await setDoc(staffDocRef, newStaffDoc).catch(async (serverError) => {
+          const permissionError = new FirestorePermissionError({
+              path: staffDocRef.path,
+              operation: 'create',
+              requestResourceData: newStaffDoc,
+          });
+          errorEmitter.emit('permission-error', permissionError);
+          throw new Error("Permission denied to create staff profile.");
       });
-      errorEmitter.emit('permission-error', permissionError);
-    });
+      
+      // Clean up the temporary app
+      const { deleteApp } = await import('firebase/app');
+      await deleteApp(tempApp);
 
-    toast({
-        title: "Staff Invited",
-        description: `${email} has been invited to join as staff. They will need to sign up with this email.`,
-    });
+      toast({
+        title: "Staff Account Created",
+        description: `${name}'s account has been successfully created.`,
+      });
 
-    setIsSubmitting(false);
-    setOpen(false);
-    setEmail('');
+      setOpen(false);
+      setName('');
+      setEmail('');
+      setPassword('');
+
+    } catch (error: any) {
+      console.error("Error creating staff user:", error);
+      toast({
+        variant: 'destructive',
+        title: "Operation Failed",
+        description: error.message || "Could not create the staff account.",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -80,10 +127,22 @@ function AddStaffDialog() {
         <DialogHeader>
           <DialogTitle>Add New Staff Member</DialogTitle>
           <DialogDescription>
-            Enter the staff member's email. They will need to sign up using this email to access their account.
+            Create a new staff account with their name, email, and a temporary password.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Full Name</Label>
+             <Input
+                id="name"
+                name="name"
+                type="text"
+                required
+                placeholder="Staff's full name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
             <div className="relative">
@@ -100,12 +159,28 @@ function AddStaffDialog() {
                 />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                id="password"
+                name="password"
+                type="password"
+                required
+                placeholder="Temporary password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-9"
+                />
+            </div>
+          </div>
           <DialogFooter className="pt-2">
             <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
             </DialogClose>
-            <Button type="submit" disabled={isSubmitting || !email}>
-              {isSubmitting ? 'Adding...' : 'Add Staff'}
+            <Button type="submit" disabled={isSubmitting || !email || !password || !name}>
+              {isSubmitting ? 'Creating Account...' : 'Create Staff Account'}
             </Button>
           </DialogFooter>
         </form>

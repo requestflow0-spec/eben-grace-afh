@@ -9,7 +9,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
+import { doc, setDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -27,61 +27,26 @@ import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SignupPage() {
   const auth = useAuth();
-  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [repeatPassword, setRepeatPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const processStaffInvitation = async (userId: string, userEmail: string, userName: string) => {
-    if (!firestore) return;
-    const invitationsRef = collection(firestore, 'invitations');
-    const q = query(invitationsRef, where('email', '==', userEmail));
-
-    try {
-      const querySnapshot = await getDocs(q);
-      if (querySnapshot.empty) {
-        return; // Not a staff invitation
-      }
-
-      const batch = writeBatch(firestore);
-      const invitationDoc = querySnapshot.docs[0];
-      
-      // 1. Create a new staff profile
-      const staffDocRef = doc(firestore, 'staff', userId);
-      const newStaffDoc = {
-        id: userId,
-        name: userName,
-        role: invitationDoc.data().role || 'Staff',
-        email: userEmail,
-        certifications: ['Basic Care'],
-        schedule: 'Mon-Fri, 9am-5pm',
-        available: true,
-        avatarUrl: `https://picsum.photos/seed/${userId}/200/200`,
-        avatarHint: 'person professional',
-      };
-      batch.set(staffDocRef, newStaffDoc);
-
-      // 2. Delete the invitation
-      batch.delete(invitationDoc.ref);
-
-      // Commit the batch
-      await batch.commit();
-
-      toast({ title: "Welcome!", description: "Your staff account has been set up." });
-    } catch (error) {
-      console.error("Error processing staff invitation: ", error);
-      // Let's not surface this error to the user for now to keep UX simple
-    }
-  };
-
-
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    if (email !== process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
+        toast({
+            variant: 'destructive',
+            title: 'Unauthorized',
+            description: 'This email is not authorized for admin registration.',
+        });
+        return;
+    }
+
     if (password !== repeatPassword) {
       toast({
         variant: 'destructive',
@@ -90,7 +55,9 @@ export default function SignupPage() {
       });
       return;
     }
+    
     setIsLoading(true);
+
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
@@ -98,22 +65,8 @@ export default function SignupPage() {
       await updateProfile(user, {
         displayName: name,
       });
-      
-      // If the user is the admin, do not process them as staff.
-      if (email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
-        toast({ title: 'Admin account created successfully!' });
-        router.push('/dashboard');
-        return;
-      }
 
-      // After user is created, check for staff invitation
-      await processStaffInvitation(user.uid, email, name);
-
-
-      // Here you would typically save the phone number to Firestore
-      // For now, we are just collecting it.
-
-      toast({ title: 'Account created successfully!' });
+      toast({ title: 'Admin account created successfully!' });
       router.push('/dashboard');
     } catch (error: any) {
       console.error('Email Sign-Up Error:', error);
@@ -136,7 +89,7 @@ export default function SignupPage() {
             <CardTitle className="text-3xl font-headline">CareHub Pro</CardTitle>
           </div>
           <CardDescription>
-            Create an account to get started.
+            Create the primary administrator account.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -146,7 +99,7 @@ export default function SignupPage() {
               <Input
                 id="name"
                 type="text"
-                placeholder="Jane Doe"
+                placeholder="Admin Name"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -154,26 +107,14 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email">Admin Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="m@example.com"
+                placeholder="admin@example.com"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                disabled={isLoading}
-              />
-            </div>
-             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                placeholder="(123) 456-7890"
-                required
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
                 disabled={isLoading}
               />
             </div>
@@ -200,7 +141,7 @@ export default function SignupPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Creating Account...' : 'Create Account'}
+              {isLoading ? 'Creating Account...' : 'Create Admin Account'}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
