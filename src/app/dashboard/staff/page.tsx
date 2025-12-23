@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -21,7 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, Mail, Link as LinkIcon } from 'lucide-react';
+import { Plus, Search, Mail, Link as LinkIcon, User } from 'lucide-react';
 import { staff, type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 
