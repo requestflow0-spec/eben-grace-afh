@@ -36,6 +36,7 @@ import {
   CircleUser,
   LogOut,
   LifeBuoy,
+  ClipboardList,
 } from 'lucide-react';
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 
@@ -43,6 +44,7 @@ const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/dashboard/patients', icon: Users, label: 'Patients' },
   { href: '/dashboard/staff', icon: UsersRound, label: 'Staff' },
+  { href: '/dashboard/records', icon: ClipboardList, label: 'Daily Records' },
   { href: '/dashboard/reports', icon: FileText, label: 'Reports' },
   { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
 ];
