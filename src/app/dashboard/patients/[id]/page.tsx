@@ -1,0 +1,355 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
+import {
+  ArrowLeft,
+  Calendar,
+  ClipboardList,
+  Edit,
+  FileText,
+  Phone,
+  Plus,
+  User,
+  UserPlus,
+  X,
+} from 'lucide-react';
+
+import { patients, staff, tasks } from '@/lib/data';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+
+export default function PatientDetailPage({ params }: { params: { id: string } }) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [selectedStaffId, setSelectedStaffId] = useState<string>('');
+  
+  const patient = patients.find(p => p.id === params.id);
+
+  if (!patient) {
+    return (
+      <div className="text-center py-12">
+        <h2 className="text-xl font-semibold mb-2">Patient not found</h2>
+        <p className="text-muted-foreground mb-4">
+          The patient you're looking for doesn't exist.
+        </p>
+        <Button asChild>
+          <Link href="/dashboard/patients">Back to Patients</Link>
+        </Button>
+      </div>
+    );
+  }
+
+  const assignedStaff = staff.filter(s => s.role === 'Nurse' || s.role === 'Doctor').slice(0, 1);
+  const availableStaff = staff.filter(s => s.role !== 'Admin');
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 mb-6">
+        <Button variant="ghost" size="icon" asChild>
+          <Link href="/dashboard/patients">
+            <ArrowLeft className="h-5 w-5" />
+          </Link>
+        </Button>
+        <div className="flex-1">
+          <h1 className="text-3xl font-bold tracking-tight font-headline">
+            {patient.name}
+          </h1>
+          <p className="text-muted-foreground">Patient profile and care records</p>
+        </div>
+        <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
+          <Edit className="mr-2 h-4 w-4" />
+          {isEditing ? 'Cancel' : 'Edit'}
+        </Button>
+      </div>
+
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Patient Information</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {isEditing ? (
+                <form
+                  onSubmit={e => {
+                    e.preventDefault();
+                    setIsEditing(false);
+                  }}
+                  className="space-y-4"
+                >
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="name">Full Name</Label>
+                      <Input id="name" name="name" defaultValue={patient.name} required />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="age">Age</Label>
+                      <Input id="age" name="age" type="number" defaultValue={patient.age} />
+                    </div>
+                     <div className="space-y-2">
+                      <Label htmlFor="gender">Gender</Label>
+                      <Input id="gender" name="gender" defaultValue={patient.gender} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="emergency_contact_name">Emergency Contact</Label>
+                      <Input
+                        id="emergency_contact_name"
+                        name="emergency_contact_name"
+                        defaultValue={patient.emergencyContact.name}
+                      />
+                    </div>
+                    <div className="space-y-2 sm:col-span-2">
+                      <Label htmlFor="emergency_contact_phone">Emergency Phone</Label>
+                      <Input
+                        id="emergency_contact_phone"
+                        name="emergency_contact_phone"
+                        defaultValue={patient.emergencyContact.phone}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="care_plan">Care Plan</Label>
+                    <Textarea
+                      id="care_plan"
+                      name="care_plan"
+                      defaultValue={patient.carePlan}
+                      rows={3}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="medical_history">Medical History</Label>
+                    <Textarea
+                      id="medical_history"
+                      name="medical_history"
+                      defaultValue={patient.medicalHistory}
+                      rows={2}
+                    />
+                  </div>
+                  <div className="flex justify-end gap-3">
+                    <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">Save Changes</Button>
+                  </div>
+                </form>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                        <User className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Age</p>
+                        <p className="font-medium">{patient.age} years old</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center">
+                        <FileText className="h-5 w-5 text-accent-foreground" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground">Gender</p>
+                        <p className="font-medium">{patient.gender}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Care Plan</p>
+                    <p className="text-foreground">{patient.carePlan}</p>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+                    <Phone className="h-5 w-5 text-yellow-600" />
+                    <div>
+                      <p className="text-sm font-medium">Emergency Contact</p>
+                      <p className="text-sm text-muted-foreground">
+                        {patient.emergencyContact.name} ({patient.emergencyContact.relation}) &bull; {patient.emergencyContact.phone}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Medical History</p>
+                    <p className="text-foreground text-sm">{patient.medicalHistory}</p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Care Records</CardTitle>
+                <CardDescription>Recent patient tasks</CardDescription>
+              </div>
+              <Button size="sm">
+                <Plus className="mr-2 h-4 w-4" />
+                Add Record
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {tasks && tasks.length > 0 ? (
+                <div className="space-y-2">
+                  {tasks.filter(t => t.patientName === patient.name).map(task => (
+                    <div
+                      key={task.id}
+                      className="flex items-center justify-between p-3 rounded-lg border"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Calendar className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <p className="font-medium text-sm">{task.description}</p>
+                          <p className="text-xs text-muted-foreground">
+                            Due: {task.dueDate}
+                          </p>
+                        </div>
+                      </div>
+                      <Badge variant={task.completed ? 'secondary' : 'default'}>
+                        {task.completed ? 'Completed' : 'Pending'}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                  <p>No records yet</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-base">Assigned Staff</CardTitle>
+              <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+                <DialogTrigger asChild>
+                  <Button variant="ghost" size="icon">
+                    <UserPlus className="h-4 w-4" />
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Assign Staff Member</DialogTitle>
+                    <DialogDescription>
+                      Select a staff member to assign to this patient.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <Select value={selectedStaffId} onValueChange={setSelectedStaffId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select staff member" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableStaff?.map(staff => (
+                          <SelectItem key={staff.id} value={staff.id}>
+                            {staff.name} ({staff.role})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex justify-end gap-3">
+                      <Button variant="outline" onClick={() => setShowAssignDialog(false)}>
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => setShowAssignDialog(false)}
+                        disabled={!selectedStaffId}
+                      >
+                        Assign
+                      </Button>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {assignedStaff.length > 0 ? (
+                <div className="space-y-2">
+                  {assignedStaff.map(s => (
+                    <div
+                      key={s.id}
+                      className="flex items-center justify-between p-2 rounded-lg bg-secondary/50"
+                    >
+                      <div className="flex items-center gap-2">
+                         <Avatar className="h-8 w-8">
+                            <AvatarImage src={s.avatarUrl} alt={s.name} data-ai-hint={s.avatarHint} />
+                            <AvatarFallback>{s.name.charAt(0)}</AvatarFallback>
+                        </Avatar>
+                        <span className="text-sm font-medium">
+                          {s.name}
+                        </span>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No staff assigned
+                </p>
+              )}
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="pb-2">
+                <CardTitle className="text-base">Activity Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+                <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Total Records</span>
+                        <span className="font-semibold">{tasks.filter(t => t.patientName === patient.name).length}</span>
+                    </div>
+                     <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Last Activity</span>
+                        <span className="text-sm">Today</span>
+                    </div>
+                </div>
+            </CardContent>
+        </Card>
+
+        </div>
+      </div>
+    </div>
+  );
+}

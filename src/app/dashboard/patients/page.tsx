@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import {
   Card,
   CardContent,
@@ -23,7 +24,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
+import { MoreHorizontal, PlusCircle, View } from 'lucide-react';
 import { patients } from '@/lib/data';
 
 export default function PatientsPage() {
@@ -102,7 +103,9 @@ export default function PatientsPage() {
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>View Details</DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                           <Link href={`/dashboard/patients/${patient.id}`}>View Details</Link>
+                        </DropdownMenuItem>
                         <DropdownMenuItem>Edit</DropdownMenuItem>
                         <DropdownMenuItem className="text-destructive">
                           Delete
