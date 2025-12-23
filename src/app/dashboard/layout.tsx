@@ -1,8 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
+import { useUser, useAuth } from '@/firebase';
+import { signOut } from 'firebase/auth';
 
 import {
   SidebarProvider,
@@ -38,7 +40,7 @@ import {
   LifeBuoy,
   ClipboardList,
 } from 'lucide-react';
-import { PlaceHolderImages } from '@/lib/placeholder-images';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -55,7 +57,25 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const userAvatar = PlaceHolderImages.find(img => img.id === 'user-avatar');
+  const router = useRouter();
+  const { user, isUserLoading } = useUser();
+  
+  React.useEffect(() => {
+    if (!isUserLoading && !user) {
+      router.replace('/login');
+    }
+  }, [user, isUserLoading, router]);
+
+  if (isUserLoading || !user) {
+    return (
+      <div className="flex h-screen w-screen items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <CareHubLogo className="size-12 text-primary animate-pulse" />
+          <p className="text-muted-foreground">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <SidebarProvider>
@@ -97,7 +117,7 @@ export default function DashboardLayout({
           </SidebarMenu>
         </SidebarContent>
         <SidebarFooter>
-          <UserDropdown userAvatar={userAvatar} />
+          <UserDropdown />
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="bg-background min-h-screen">
@@ -107,7 +127,7 @@ export default function DashboardLayout({
             {/* Can add breadcrumbs or page title here */}
           </div>
           <div className="hidden md:block">
-            <UserDropdown userAvatar={userAvatar} />
+            <UserDropdown />
           </div>
         </header>
         <main className="flex-1 flex-col p-4 sm:p-6 lg:p-8">{children}</main>
@@ -116,7 +136,25 @@ export default function DashboardLayout({
   );
 }
 
-function UserDropdown({ userAvatar }: { userAvatar: any }) {
+function UserDropdown() {
+  const auth = useAuth();
+  const router = useRouter();
+  const { user } = useUser();
+  
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      router.push('/login');
+    } catch (error) {
+      console.error('Logout Error:', error);
+    }
+  };
+
+  const getInitials = (name: string | null | undefined) => {
+    if (!name) return '??';
+    return name.split(' ').map(n => n[0]).join('');
+  }
+
   return (
     <DropdownMenu>
       <TooltipProvider>
@@ -128,21 +166,20 @@ function UserDropdown({ userAvatar }: { userAvatar: any }) {
                 className="relative h-8 w-full justify-start gap-2 group-data-[collapsible=icon]:h-8 group-data-[collapsible=icon]:w-8 group-data-[collapsible=icon]:p-0 group-data-[collapsible=icon]:justify-center"
               >
                 <Avatar className="h-8 w-8">
-                  {userAvatar && (
+                  {user?.photoURL && (
                     <AvatarImage
-                      src={userAvatar.imageUrl}
-                      alt="User Avatar"
-                      data-ai-hint={userAvatar.imageHint}
+                      src={user.photoURL}
+                      alt={user.displayName || 'User Avatar'}
                     />
                   )}
-                  <AvatarFallback>JD</AvatarFallback>
+                  <AvatarFallback>{getInitials(user?.displayName)}</AvatarFallback>
                 </Avatar>
                 <div className="text-left group-data-[collapsible=icon]:hidden">
                   <p className="text-sm font-medium leading-none">
-                    Jane Doe
+                    {user?.displayName || 'User'}
                   </p>
                   <p className="text-xs leading-none text-muted-foreground">
-                    admin@carehub.pro
+                    {user?.email || ''}
                   </p>
                 </div>
               </Button>
@@ -153,7 +190,7 @@ function UserDropdown({ userAvatar }: { userAvatar: any }) {
             align="center"
             className="bg-sidebar-background text-sidebar-foreground group-data-[collapsible=icon]:block hidden"
           >
-            <p>Jane Doe</p>
+            <p>{user?.displayName || 'User'}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -161,9 +198,9 @@ function UserDropdown({ userAvatar }: { userAvatar: any }) {
       <DropdownMenuContent className="w-56" align="end" forceMount>
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium leading-none">Jane Doe</p>
+            <p className="text-sm font-medium leading-none">{user?.displayName || 'User'}</p>
             <p className="text-xs leading-none text-muted-foreground">
-              admin@carehub.pro
+              {user?.email || ''}
             </p>
           </div>
         </DropdownMenuLabel>
@@ -181,7 +218,7 @@ function UserDropdown({ userAvatar }: { userAvatar: any }) {
           <span>Support</span>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem>
+        <DropdownMenuItem onClick={handleLogout}>
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>

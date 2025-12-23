@@ -1,169 +1,52 @@
-/**
- * Core Philosophy: This ruleset enforces a strict, user-centric security model combined with role-based access for administrative functions.
- * All patient-related data is private and owned by the user who created it, ensuring patient confidentiality. A separate, top-level
- * collection manages staff profiles, which are publicly readable by any authenticated user but managed exclusively by administrators.
- * Administrative roles are explicitly defined through a separate roles collection, preventing unauthorized privilege escalation.
- *
- * Data Structure: The core data is hierarchically organized under `/users/{userId}`, which contains a `patients` subcollection.
- * Each patient document then has its own `dailyRecords` and `reports` subcollections. This path-based ownership is the primary
- * security mechanism. Top-level collections `/staff` and `/roles_admin` are used for global and administrative data, respectively.
- *
- * Key Security Decisions:
- * - User data is strictly segregated by user ID in the path. A user can ONLY access data under their own `/users/{userId}` tree.
- * - Listing of users is disallowed.
- * - Administrative privileges are granted by the existence of a document in the `/roles_admin/{userId}` collection. This is a clear and auditable method.
- * - Staff profiles are readable by all authenticated users, but writable only by admins.
- * - Writes always require authentication and authorization; no data can be modified or deleted anonymously.
- *
- * Denormalization for Authorization: To maintain high performance and avoid costly `get()` calls in rules, relational integrity is enforced
- * through denormalized fields. For example, a `DailyRecord` document stored under a specific patient's path must also contain a `patientId`
- * field that matches the path. This is validated on creation and made immutable on update.
- *
- * Structural Segregation: Private user data (`/users`) is kept entirely separate from global application data (`/staff`) and security data
- * (`/roles_admin`). This clear separation simplifies rule logic and prevents data leakage between different security contexts.
- */
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ------------------------------------------------------------------------
-    // Helper Functions
-    // ------------------------------------------------------------------------
-
-    /**
-     * Checks if the user is authenticated.
-     */
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
 
-    /**
-     * Checks if the currently authenticated user's ID matches the provided userId.
-     * This is the foundation of the user-ownership model.
-     */
     function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
+      return request.auth.uid == userId;
     }
 
-    /**
-     * Checks if the document being accessed already exists.
-     * Crucial for protecting against writes to non-existent documents.
-     */
-    function isExistingDoc() {
-      return resource != null;
-    }
-
-    /**
-     * Combines ownership check with an existence check for update/delete operations.
-     */
-    function isExistingOwner(userId) {
-      return isOwner(userId) && isExistingDoc();
-    }
-
-    /**
-     * Checks if the requesting user has an admin role.
-     * The role is granted by the existence of a document in the /roles_admin collection.
-     */
     function isAdmin() {
-      return isSignedIn() && exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
     }
-
-    // ------------------------------------------------------------------------
-    // User Data Rules
-    // ------------------------------------------------------------------------
-
-    /**
-     * @description A user can create their own profile document and manage it afterwards.
-     * @path /users/{userId}
-     * @allow A signed-in user (auth.uid: 'user_abc') can (create) a document at `/users/user_abc`.
-     * @deny An anonymous user cannot (create) any user document. A user ('user_abc') cannot (update) another user's document (`/users/user_xyz`).
-     * @principle Establishes a user's own data space and enforces strict ownership.
-     */
+    
+    // User profile is readable/writable only by the owner
     match /users/{userId} {
-      allow get: if isOwner(userId);
-      allow list: if false; // Disallow listing of users for privacy.
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      allow read, write: if isOwner(userId);
     }
+    
+    // Staff can read all patient data, admins can write
+    match /patients/{patientId} {
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
 
-    /**
-     * @description A user can manage patient profiles within their own user space.
-     * @path /users/{userId}/patients/{patientId}
-     * @allow A user ('user_abc') can (create) a patient document at `/users/user_abc/patients/patient_123`.
-     * @deny A user ('user_xyz') cannot (get) a patient document at `/users/user_abc/patients/patient_123`.
-     * @principle Enforces strict ownership of a user's sensitive patient data.
-     */
-    match /users/{userId}/patients/{patientId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId);
-      allow update: if isExistingOwner(userId);
-      allow delete: if isExistingOwner(userId);
+      // Daily records can be created by any signed-in user, but only updated/deleted by admins
+      match /dailyRecords/{dailyRecordId} {
+        allow get, list: if isSignedIn();
+        allow create: if isSignedIn();
+        allow update, delete: if isAdmin();
+      }
+
+      // Sleep logs can be created and managed by any signed-in user
+      match /sleepLogs/{sleepLogId} {
+        allow read, write: if isSignedIn();
+      }
     }
-
-    /**
-     * @description A user can manage daily records for patients they own.
-     * @path /users/{userId}/patients/{patientId}/dailyRecords/{dailyRecordId}
-     * @allow A user ('user_abc') can (list) all daily records at `/users/user_abc/patients/patient_123/dailyRecords`.
-     * @deny A user ('user_xyz') cannot (delete) a daily record at `/users/user_abc/patients/patient_123/dailyRecords/record_456`.
-     * @principle Inherits ownership from the path and validates relational integrity of the nested data.
-     */
-    match /users/{userId}/patients/{patientId}/dailyRecords/{dailyRecordId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.patientId == patientId;
-      allow update: if isExistingOwner(userId) && request.resource.data.patientId == resource.data.patientId;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    /**
-     * @description A user can manage reports for patients they own.
-     * @path /users/{userId}/patients/{patientId}/reports/{reportId}
-     * @allow A user ('user_abc') can (create) a report at `/users/user_abc/patients/patient_123/reports/report_789`.
-     * @deny An anonymous user cannot (get) any report.
-     * @principle Inherits ownership from the path and validates relational integrity of the nested data.
-     */
-    match /users/{userId}/patients/{patientId}/reports/{reportId} {
-      allow get: if isOwner(userId);
-      allow list: if isOwner(userId);
-      allow create: if isOwner(userId) && request.resource.data.patientId == patientId;
-      allow update: if isExistingOwner(userId) && request.resource.data.patientId == resource.data.patientId;
-      allow delete: if isExistingOwner(userId);
-    }
-
-    // ------------------------------------------------------------------------
-    // Global & Admin Rules
-    // ------------------------------------------------------------------------
-
-    /**
-     * @description Staff profiles are readable by any authenticated user but can only be managed by admins.
-     * @path /staff/{staffId}
-     * @allow Any signed-in user can (get) or (list) staff profiles. An admin can (create) a new staff profile.
-     * @deny A regular signed-in user cannot (update) or (delete) a staff profile.
-     * @principle Provides public read access for application needs while restricting sensitive writes to authorized administrators.
-     */
+    
+    // Staff profiles are readable by any authenticated user, but writable only by admins
     match /staff/{staffId} {
-      allow get: if isSignedIn();
-      allow list: if isSignedIn();
-      allow create: if isAdmin();
-      allow update: if isAdmin() && isExistingDoc();
-      allow delete: if isAdmin() && isExistingDoc();
+      allow get, list: if isSignedIn();
+      allow create, update, delete: if isAdmin();
     }
-
-    /**
-     * @description Defines user roles. Only admins can read the full list or assign other users as admins.
-     * @path /roles_admin/{roleUserId}
-     * @allow An admin can (create) a document at `/roles_admin/user_xyz` to grant them admin rights.
-     * @deny A regular user ('user_abc') cannot (create) a document at `/roles_admin/user_abc` to self-promote.
-     * @principle Protects against privilege escalation by ensuring only existing admins can manage administrative roles.
-     */
-    match /roles_admin/{roleUserId} {
-      allow get: if isAdmin() || isOwner(roleUserId);
-      allow list: if isAdmin();
-      allow create: if isAdmin();
-      allow update: if false; // Roles are defined by existence, not content. No updates allowed.
-      allow delete: if isAdmin() && isExistingDoc();
+    
+    // Admin roles can only be managed by other admins
+    match /roles_admin/{userId} {
+      allow get, list, create, delete: if isAdmin();
     }
   }
 }
