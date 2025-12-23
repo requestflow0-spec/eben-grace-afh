@@ -1,9 +1,19 @@
 'use client';
 
-import { use } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Mail, Phone, Calendar, Briefcase } from 'lucide-react';
-import { staff } from '@/lib/data';
+import {
+  ArrowLeft,
+  Mail,
+  Phone,
+  Calendar,
+  Briefcase,
+  Edit,
+  Plus,
+  User,
+  X,
+} from 'lucide-react';
+import { staff, patients, type Patient } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -14,7 +24,25 @@ import {
 } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
+import { Input } from '@/components/ui/input';
 
 export default function StaffDetailPage({
   params,
@@ -23,6 +51,26 @@ export default function StaffDetailPage({
 }) {
   const { id } = use(params);
   const member = staff.find(s => s.id === id);
+
+  // Mock state for assigned patients. In a real app, this would come from a database.
+  const [assignedPatients, setAssignedPatients] = useState<Patient[]>(
+    patients.slice(0, 1)
+  );
+  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
+  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
+
+  const handleAssignPatient = () => {
+    const patientToAdd = patients.find(p => p.id === selectedPatientId);
+    if (patientToAdd && !assignedPatients.some(p => p.id === patientToAdd.id)) {
+      setAssignedPatients([...assignedPatients, patientToAdd]);
+    }
+    setSelectedPatientId('');
+    setIsAssignDialogOpen(false);
+  };
+
+  const handleRemovePatient = (patientId: string) => {
+    setAssignedPatients(assignedPatients.filter(p => p.id !== patientId));
+  };
 
   if (!member) {
     return (
@@ -37,6 +85,10 @@ export default function StaffDetailPage({
       </div>
     );
   }
+
+  const unassignedPatients = patients.filter(
+    p => !assignedPatients.some(ap => ap.id === p.id)
+  );
 
   return (
     <div className="space-y-6">
@@ -55,75 +107,212 @@ export default function StaffDetailPage({
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row items-start gap-6">
             <Avatar className="h-24 w-24 border">
-              <AvatarImage src={member.avatarUrl} alt={member.name} data-ai-hint={member.avatarHint} />
+              <AvatarImage
+                src={member.avatarUrl}
+                alt={member.name}
+                data-ai-hint={member.avatarHint}
+              />
               <AvatarFallback className="text-3xl">
-                {member.name.split(' ').map(n => n[0]).join('')}
+                {member.name
+                  .split(' ')
+                  .map(n => n[0])
+                  .join('')}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1">
-              <h2 className="text-2xl font-bold font-headline">{member.name}</h2>
+              <h2 className="text-2xl font-bold font-headline">
+                {member.name}
+              </h2>
               <p className="text-muted-foreground">{member.role}</p>
               <div className="mt-4 flex flex-wrap gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span>{member.name.toLowerCase().replace(' ', '.')}@carehub.pro</span>
+                  <span>
+                    {member.name.toLowerCase().replace(' ', '.')}@carehub.pro
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>555-010-0{member.id.replace('s','')}</span>
+                  <span>555-010-0{member.id.replace('s', '')}</span>
                 </div>
               </div>
             </div>
-             <Badge
-                variant={member.available ? 'secondary' : 'outline'}
-                className={
+            <Badge
+              variant={member.available ? 'secondary' : 'outline'}
+              className={
                 member.available
-                    ? 'bg-green-500/20 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-transparent'
-                    : ''
-                }
+                  ? 'bg-green-500/20 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-transparent'
+                  : ''
+              }
             >
-                {member.available ? 'Available' : 'Unavailable'}
+              {member.available ? 'Available' : 'Unavailable'}
             </Badge>
           </div>
         </CardContent>
       </Card>
-      
+
       <div className="grid md:grid-cols-2 gap-6">
         <Card>
-            <CardHeader>
-                <CardTitle>Schedule</CardTitle>
-                <CardDescription>Current weekly schedule for this staff member.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <div className="flex items-center gap-3">
-                    <Calendar className="h-5 w-5 text-primary" />
-                    <p className="font-medium">{member.schedule}</p>
+          <CardHeader className="flex-row items-center justify-between">
+            <div>
+              <CardTitle>Schedule</CardTitle>
+              <CardDescription>
+                Weekly schedule for this staff member.
+              </CardDescription>
+            </div>
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Edit className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Edit Schedule</DialogTitle>
+                </DialogHeader>
+                <div className="py-4 space-y-2">
+                  <Label htmlFor="schedule">Schedule Details</Label>
+                  <Input id="schedule" defaultValue={member.schedule} />
                 </div>
-            </CardContent>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button variant="outline">Cancel</Button>
+                  </DialogClose>
+                  <DialogClose asChild>
+                    <Button>Save Changes</Button>
+                  </DialogClose>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-3">
+              <Calendar className="h-5 w-5 text-primary" />
+              <p className="font-medium">{member.schedule}</p>
+            </div>
+          </CardContent>
         </Card>
         <Card>
-            <CardHeader>
-                <CardTitle>Certifications</CardTitle>
-                <CardDescription>Professional qualifications and certifications.</CardDescription>
-            </CardHeader>
-            <CardContent className="flex flex-wrap gap-2">
-                {member.certifications.map(cert => (
-                    <Badge key={cert} variant="secondary">{cert}</Badge>
-                ))}
-            </CardContent>
+          <CardHeader>
+            <CardTitle>Certifications</CardTitle>
+            <CardDescription>
+              Professional qualifications.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-2">
+            {member.certifications.map(cert => (
+              <Badge key={cert} variant="secondary">
+                {cert}
+              </Badge>
+            ))}
+          </CardContent>
         </Card>
       </div>
 
-       <Card>
-            <CardHeader>
-                <CardTitle>Assigned Patients</CardTitle>
-                <CardDescription>Patients currently assigned to {member.name}.</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <p className="text-sm text-muted-foreground">Patient assignment functionality coming soon.</p>
-            </CardContent>
-        </Card>
-
+      <Card>
+        <CardHeader className="flex-row items-center justify-between">
+          <div>
+            <CardTitle>Assigned Patients</CardTitle>
+            <CardDescription>
+              Patients currently assigned to {member.name}.
+            </CardDescription>
+          </div>
+          <Dialog
+            open={isAssignDialogOpen}
+            onOpenChange={setIsAssignDialogOpen}
+          >
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Plus className="mr-2 h-4 w-4" />
+                Assign Patient
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Assign Patient</DialogTitle>
+                <DialogDescription>
+                  Select a patient to assign to {member.name}.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="py-4 space-y-4">
+                <Select
+                  value={selectedPatientId}
+                  onValueChange={setSelectedPatientId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a patient to assign" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {unassignedPatients.map(p => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsAssignDialogOpen(false)}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleAssignPatient} disabled={!selectedPatientId}>
+                  Assign Patient
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </CardHeader>
+        <CardContent>
+          {assignedPatients.length > 0 ? (
+            <div className="space-y-2">
+              {assignedPatients.map(patient => (
+                <div
+                  key={patient.id}
+                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage
+                        src={patient.avatarUrl}
+                        alt={patient.name}
+                        data-ai-hint={patient.avatarHint}
+                      />
+                      <AvatarFallback>
+                        {patient.name.charAt(0)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{patient.name}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Room 10{patient.id}
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                    onClick={() => handleRemovePatient(patient.id)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center text-muted-foreground py-8">
+              <User className="mx-auto h-10 w-10 mb-2" />
+              <p>No patients assigned yet.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
+
+    
