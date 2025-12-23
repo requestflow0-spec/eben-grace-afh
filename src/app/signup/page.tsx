@@ -4,8 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Auth,
   createUserWithEmailAndPassword,
+  updateProfile,
 } from 'firebase/auth';
 import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
@@ -25,15 +25,33 @@ export default function SignupPage() {
   const auth = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [repeatPassword, setRepeatPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (password !== repeatPassword) {
+      toast({
+        variant: 'destructive',
+        title: 'Sign-up Failed',
+        description: 'Passwords do not match. Please try again.',
+      });
+      return;
+    }
     setIsLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      await updateProfile(userCredential.user, {
+        displayName: name,
+      });
+
+      // Here you would typically save the phone number to Firestore
+      // For now, we are just collecting it.
+
       toast({ title: 'Account created successfully!' });
       router.push('/dashboard');
     } catch (error: any) {
@@ -43,6 +61,7 @@ export default function SignupPage() {
         title: 'Sign-up Failed',
         description: error.message || 'Could not create account. Please try again.',
       });
+    } finally {
       setIsLoading(false);
     }
   };
@@ -62,6 +81,18 @@ export default function SignupPage() {
         <CardContent>
           <form onSubmit={handleEmailSignUp} className="space-y-4">
             <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                type="text"
+                placeholder="Jane Doe"
+                required
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
@@ -73,6 +104,18 @@ export default function SignupPage() {
                 disabled={isLoading}
               />
             </div>
+             <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="(123) 456-7890"
+                required
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
             <div className="space-y-2">
               <Label htmlFor="password">Password</Label>
               <Input
@@ -81,6 +124,17 @@ export default function SignupPage() {
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="repeat-password">Confirm Password</Label>
+              <Input
+                id="repeat-password"
+                type="password"
+                required
+                value={repeatPassword}
+                onChange={(e) => setRepeatPassword(e.target.value)}
                 disabled={isLoading}
               />
             </div>
