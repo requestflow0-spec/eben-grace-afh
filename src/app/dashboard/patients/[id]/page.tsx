@@ -37,7 +37,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import { patients, staff, tasks } from '@/lib/data';
+import { patients, staff, tasks as initialTasks, Task } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -185,8 +185,29 @@ export default function PatientDetailPage({
   const [isEditing, setIsEditing] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
+  const [tasks, setTasks] = useState<Task[]>(initialTasks);
 
   const patient = patients.find(p => p.id === id);
+
+  const handleCreateTodayRecord = () => {
+    if (!patient) return;
+    const newRecord: Task = {
+      id: `t${tasks.length + 1}`,
+      description: 'New daily record',
+      patientName: patient.name,
+      dueDate: new Date().toISOString(),
+      completed: false,
+    };
+    setTasks([newRecord, ...tasks]);
+  };
+
+  const handleToggleRecordStatus = (taskId: string) => {
+    setTasks(currentTasks =>
+      currentTasks.map(task =>
+        task.id === taskId ? { ...task, completed: !task.completed } : task
+      )
+    );
+  };
 
   if (!patient) {
     return (
@@ -404,7 +425,7 @@ export default function PatientDetailPage({
                       Behavior
                     </TabsTrigger>
                   </TabsList>
-                <Button size="sm">
+                <Button size="sm" onClick={handleCreateTodayRecord}>
                   <Plus className="mr-2 h-4 w-4" />
                   Start Today's Record
                 </Button>
@@ -419,7 +440,10 @@ export default function PatientDetailPage({
                           .map(task => (
                             <div
                               key={task.id}
-                              className="flex items-center justify-between p-3 rounded-lg border"
+                              className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
+                              onClick={() => {
+                                /* In a real app, this would navigate to the record details */
+                              }}
                             >
                               <div className="flex items-center gap-3">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
@@ -441,6 +465,11 @@ export default function PatientDetailPage({
                                 variant={
                                   task.completed ? 'secondary' : 'default'
                                 }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleToggleRecordStatus(task.id);
+                                }}
+                                className="cursor-pointer"
                               >
                                 {task.completed ? 'Completed' : 'Pending'}
                               </Badge>
