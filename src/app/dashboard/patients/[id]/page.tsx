@@ -388,115 +388,89 @@ export default function PatientDetailPage({
           </Card>
 
           <Tabs defaultValue="care-records">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="care-records">
-                <ClipboardList className="mr-2 h-4 w-4" />
-                Care Records
-              </TabsTrigger>
-              <TabsTrigger value="sleep-log">
-                <Bed className="mr-2 h-4 w-4" />
-                Sleep Log
-              </TabsTrigger>
-              <TabsTrigger value="behavior-tracking">
-                <Activity className="mr-2 h-4 w-4" />
-                Behavior
-              </TabsTrigger>
-            </TabsList>
-            <TabsContent value="care-records">
-              <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Care Records</CardTitle>
-                    <CardDescription>
-                      Recent daily care records
-                    </CardDescription>
-                  </div>
-                  <Button size="sm">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Start Today's Record
-                  </Button>
-                </CardHeader>
-                <CardContent>
-                  {tasks && tasks.length > 0 ? (
-                    <div className="space-y-2">
-                      {tasks
-                        .filter(t => t.patientName === patient.name)
-                        .slice(0, 5)
-                        .map(task => (
-                          <div
-                            key={task.id}
-                            className="flex items-center justify-between p-3 rounded-lg border"
-                          >
-                            <div className="flex items-center gap-3">
-                              <Calendar className="h-4 w-4 text-muted-foreground" />
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {format(
-                                    new Date(task.dueDate),
-                                    'EEEE, MMMM d, yyyy'
-                                  )}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  By{' '}
-                                  {staff.find(s => s.role === 'Nurse')
-                                    ?.name || 'Unknown'}
-                                </p>
-                              </div>
-                            </div>
-                            <Badge
-                              variant={
-                                task.completed ? 'secondary' : 'default'
-                              }
+            <Card>
+              <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
+                  <TabsList>
+                    <TabsTrigger value="care-records">
+                      <ClipboardList className="mr-2 h-4 w-4" />
+                      Care Records
+                    </TabsTrigger>
+                    <TabsTrigger value="sleep-log">
+                      <Bed className="mr-2 h-4 w-4" />
+                      Sleep Log
+                    </TabsTrigger>
+                    <TabsTrigger value="behavior-tracking">
+                      <Activity className="mr-2 h-4 w-4" />
+                      Behavior
+                    </TabsTrigger>
+                  </TabsList>
+                <Button size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Start Today's Record
+                </Button>
+              </CardHeader>
+              <CardContent>
+                <TabsContent value="care-records">
+                    {tasks && tasks.length > 0 ? (
+                      <div className="space-y-2">
+                        {tasks
+                          .filter(t => t.patientName === patient.name)
+                          .slice(0, 5)
+                          .map(task => (
+                            <div
+                              key={task.id}
+                              className="flex items-center justify-between p-3 rounded-lg border"
                             >
-                              {task.completed ? 'Completed' : 'Pending'}
-                            </Badge>
-                          </div>
-                        ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-8 text-muted-foreground">
-                      <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                      <p>No records yet</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="sleep-log">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Daily Sleep Log</CardTitle>
-                  <CardDescription>
-                    Track sleep patterns for each hour of the day.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
+                              <div className="flex items-center gap-3">
+                                <Calendar className="h-4 w-4 text-muted-foreground" />
+                                <div>
+                                  <p className="font-medium text-sm">
+                                    {format(
+                                      new Date(task.dueDate),
+                                      'EEEE, MMMM d, yyyy'
+                                    )}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    By{' '}
+                                    {staff.find(s => s.role === 'Nurse')
+                                      ?.name || 'Unknown'}
+                                  </p>
+                                </div>
+                              </div>
+                              <Badge
+                                variant={
+                                  task.completed ? 'secondary' : 'default'
+                                }
+                              >
+                                {task.completed ? 'Completed' : 'Pending'}
+                              </Badge>
+                            </div>
+                          ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                        <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p>No records yet</p>
+                      </div>
+                    )}
+                </TabsContent>
+                <TabsContent value="sleep-log">
                   <SleepLogViewer />
-                </CardContent>
-              </Card>
-            </TabsContent>
-            <TabsContent value="behavior-tracking">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Behavior Tracking</CardTitle>
-                  <CardDescription>
-                    Monitoring behavioral patterns over the last 30 days.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResponsiveContainer width="100%" height={250}>
-                    <BarChart data={behaviorData}>
-                      <CartesianGrid strokeDasharray="3 3" />
-                      <XAxis dataKey="day" fontSize={12} />
-                      <YAxis fontSize={12} />
-                      <Tooltip />
-                      <Bar dataKey="positive" fill="hsl(var(--primary))" name="Positive" stackId="a" />
-                      <Bar dataKey="negative" fill="hsl(var(--destructive))" name="Negative" stackId="a" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </CardContent>
-              </Card>
-            </TabsContent>
+                </TabsContent>
+                <TabsContent value="behavior-tracking">
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={behaviorData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="day" fontSize={12} />
+                        <YAxis fontSize={12} />
+                        <Tooltip />
+                        <Bar dataKey="positive" fill="hsl(var(--primary))" name="Positive" stackId="a" />
+                        <Bar dataKey="negative" fill="hsl(var(--destructive))" name="Negative" stackId="a" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                </TabsContent>
+              </CardContent>
+            </Card>
           </Tabs>
         </div>
 
