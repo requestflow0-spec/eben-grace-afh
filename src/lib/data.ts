@@ -11,6 +11,12 @@ export type Patient = {
   carePlan: string;
   avatarUrl: string;
   avatarHint: string;
+  dateOfBirth?: string;
+  disabilityType?: string;
+  careNeeds?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
 };
 
 export type Staff = {
@@ -55,6 +61,12 @@ export const patients: Patient[] = [
     carePlan: 'Monitor blood pressure twice daily, administer insulin as prescribed, assist with mobility exercises.',
     avatarUrl: findImage('patient1').imageUrl,
     avatarHint: findImage('patient1').imageHint,
+    dateOfBirth: '1952-03-15',
+    disabilityType: 'Mobility Impairment',
+    careNeeds: 'Assistance with daily living activities, physical therapy.',
+    notes: 'Patient is cheerful and cooperative.',
+    createdAt: '2023-01-15T10:00:00Z',
+    updatedAt: new Date().toISOString(),
   },
   {
     id: '2',
@@ -67,6 +79,12 @@ export const patients: Patient[] = [
     carePlan: 'Wound care, medication management for heart condition, gradual increase in physical activity.',
     avatarUrl: findImage('patient2').imageUrl,
     avatarHint: findImage('patient2').imageHint,
+    dateOfBirth: '1956-07-20',
+    disabilityType: 'Post-surgical recovery',
+    careNeeds: 'Cardiac monitoring and rehabilitation support.',
+    notes: 'Monitor for signs of infection at the surgical site.',
+    createdAt: '2023-02-20T14:30:00Z',
+    updatedAt: new Date().toISOString(),
   },
   {
     id: '3',
@@ -79,6 +97,12 @@ export const patients: Patient[] = [
     carePlan: 'Fall prevention protocol, memory engagement activities, calcium and Vitamin D supplements.',
     avatarUrl: findImage('patient3').imageUrl,
     avatarHint: findImage('patient3').imageHint,
+    dateOfBirth: '1943-09-01',
+    disabilityType: 'Cognitive Decline',
+    careNeeds: 'Supervision for safety, cognitive stimulation.',
+    notes: 'Patient enjoys listening to classical music.',
+    createdAt: '2023-03-10T09:00:00Z',
+    updatedAt: new Date().toISOString(),
   },
   {
     id: '4',
@@ -91,6 +115,12 @@ export const patients: Patient[] = [
     carePlan: 'Administer oxygen therapy as needed, breathing exercises, monitor for respiratory infections.',
     avatarUrl: findImage('patient4').imageUrl,
     avatarHint: findImage('patient4').imageHint,
+    dateOfBirth: '1949-11-25',
+    disabilityType: 'Respiratory',
+    careNeeds: 'Management of COPD symptoms and medication.',
+    notes: 'Ensure humidifier is maintained.',
+    createdAt: '2023-04-05T11:20:00Z',
+    updatedAt: new Date().toISOString(),
   },
 ];
 

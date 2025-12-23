@@ -424,7 +424,7 @@ export default function PatientDetailPage({
                     Profile Created
                   </span>
                   <span className="text-sm">
-                    {format(new Date(patient.createdAt), 'MMM d, yyyy')}
+                    {patient.createdAt ? format(new Date(patient.createdAt), 'MMM d, yyyy') : 'N/A'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -432,7 +432,7 @@ export default function PatientDetailPage({
                     Last Updated
                   </span>
                   <span className="text-sm">
-                    {format(new Date(patient.updatedAt), 'MMM d, yyyy')}
+                    {patient.updatedAt ? format(new Date(patient.updatedAt), 'MMM d, yyyy') : 'N/A'}
                   </span>
                 </div>
               </div>
@@ -443,5 +443,3 @@ export default function PatientDetailPage({
     </div>
   );
 }
-
-    
