@@ -1,6 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, use } from 'react';
+import {
+  useParams,
+  usePathname,
+  useRouter,
+  useSearchParams,
+} from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -14,6 +20,7 @@ import {
   UserPlus,
   X,
 } from 'lucide-react';
+import { format, differenceInYears, parseISO } from 'date-fns';
 
 import { patients, staff, tasks } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -44,6 +51,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Skeleton } from '@/components/ui/skeleton';
 
 export default function PatientDetailPage({ params }: { params: { id: string } }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -65,7 +73,8 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
       </div>
     );
   }
-
+  
+  const age = differenceInYears(new Date(), parseISO(patient.dateOfBirth));
   const assignedStaff = staff.filter(s => s.role === 'Nurse' || s.role === 'Doctor').slice(0, 1);
   const availableStaff = staff.filter(s => s.role !== 'Admin');
 
@@ -110,12 +119,17 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                       <Input id="name" name="name" defaultValue={patient.name} required />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="age">Age</Label>
-                      <Input id="age" name="age" type="number" defaultValue={patient.age} />
+                      <Label htmlFor="date_of_birth">Date of Birth</Label>
+                      <Input
+                        id="date_of_birth"
+                        name="date_of_birth"
+                        type="date"
+                        defaultValue={patient.dateOfBirth}
+                      />
                     </div>
                      <div className="space-y-2">
-                      <Label htmlFor="gender">Gender</Label>
-                      <Input id="gender" name="gender" defaultValue={patient.gender} />
+                      <Label htmlFor="disability_type">Disability Type</Label>
+                      <Input id="disability_type" name="disability_type" defaultValue={patient.disabilityType} />
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="emergency_contact_name">Emergency Contact</Label>
@@ -135,23 +149,23 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <Label htmlFor="care_plan">Care Plan</Label>
+                    <Label htmlFor="care_needs">Care Needs</Label>
                     <Textarea
-                      id="care_plan"
-                      name="care_plan"
-                      defaultValue={patient.carePlan}
+                      id="care_needs"
+                      name="care_needs"
+                      defaultValue={patient.careNeeds}
                       rows={3}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="medical_history">Medical History</Label>
-                    <Textarea
-                      id="medical_history"
-                      name="medical_history"
-                      defaultValue={patient.medicalHistory}
-                      rows={2}
-                    />
-                  </div>
+                   <div className="space-y-2">
+                      <Label htmlFor="notes">Notes</Label>
+                      <Textarea
+                        id="notes"
+                        name="notes"
+                        defaultValue={patient.notes}
+                        rows={2}
+                      />
+                    </div>
                   <div className="flex justify-end gap-3">
                     <Button type="button" variant="outline" onClick={() => setIsEditing(false)}>
                       Cancel
@@ -168,24 +182,26 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Age</p>
-                        <p className="font-medium">{patient.age} years old</p>
+                        <p className="font-medium">{age} years old</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-accent flex items-center justify-center">
+                      <div className="h-10 w-10 rounded-lg bg-accent/20 flex items-center justify-center">
                         <FileText className="h-5 w-5 text-accent-foreground" />
                       </div>
                       <div>
-                        <p className="text-sm text-muted-foreground">Gender</p>
-                        <p className="font-medium">{patient.gender}</p>
+                        <p className="text-sm text-muted-foreground">Disability Type</p>
+                        <p className="font-medium">{patient.disabilityType || 'Not specified'}</p>
                       </div>
                     </div>
                   </div>
-
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Care Plan</p>
-                    <p className="text-foreground">{patient.carePlan}</p>
-                  </div>
+                  
+                  {patient.careNeeds && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Care Needs</p>
+                      <p className="text-foreground">{patient.careNeeds}</p>
+                    </div>
+                  )}
 
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
                     <Phone className="h-5 w-5 text-yellow-600" />
@@ -197,10 +213,12 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                     </div>
                   </div>
 
-                  <div>
-                    <p className="text-sm text-muted-foreground mb-1">Medical History</p>
-                    <p className="text-foreground text-sm">{patient.medicalHistory}</p>
-                  </div>
+                  {patient.notes && (
+                    <div>
+                      <p className="text-sm text-muted-foreground mb-1">Additional Notes</p>
+                      <p className="text-foreground text-sm">{patient.notes}</p>
+                    </div>
+                  )}
                 </div>
               )}
             </CardContent>
@@ -210,17 +228,17 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Care Records</CardTitle>
-                <CardDescription>Recent patient tasks</CardDescription>
+                <CardDescription>Recent daily care records</CardDescription>
               </div>
               <Button size="sm">
                 <Plus className="mr-2 h-4 w-4" />
-                Add Record
+                Start Today's Record
               </Button>
             </CardHeader>
             <CardContent>
               {tasks && tasks.length > 0 ? (
                 <div className="space-y-2">
-                  {tasks.filter(t => t.patientName === patient.name).map(task => (
+                  {tasks.filter(t => t.patientName === patient.name).slice(0,5).map(task => (
                     <div
                       key={task.id}
                       className="flex items-center justify-between p-3 rounded-lg border"
@@ -228,9 +246,9 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                       <div className="flex items-center gap-3">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <div>
-                          <p className="font-medium text-sm">{task.description}</p>
+                          <p className="font-medium text-sm">{format(new Date(task.dueDate), "EEEE, MMMM d, yyyy")}</p>
                           <p className="text-xs text-muted-foreground">
-                            Due: {task.dueDate}
+                            By {staff.find(s => s.role === 'Nurse')?.name || 'Unknown'}
                           </p>
                         </div>
                       </div>
@@ -275,7 +293,7 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                       <SelectContent>
                         {availableStaff?.map(staff => (
                           <SelectItem key={staff.id} value={staff.id}>
-                            {staff.name} ({staff.role})
+                            {staff.name}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -341,8 +359,12 @@ export default function PatientDetailPage({ params }: { params: { id: string } }
                         <span className="font-semibold">{tasks.filter(t => t.patientName === patient.name).length}</span>
                     </div>
                      <div className="flex justify-between items-center">
-                        <span className="text-sm text-muted-foreground">Last Activity</span>
-                        <span className="text-sm">Today</span>
+                        <span className="text-sm text-muted-foreground">Profile Created</span>
+                        <span className="text-sm">{format(new Date(patient.createdAt), 'MMM d, yyyy')}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Last Updated</span>
+                        <span className="text-sm">{format(new Date(patient.updatedAt), 'MMM d, yyyy')}</span>
                     </div>
                 </div>
             </CardContent>
