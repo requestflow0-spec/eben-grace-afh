@@ -1,5 +1,6 @@
 // This file contains placeholder data.
 // In a real application, this data would be fetched from a database.
+import { type Timestamp } from "firebase/firestore";
 
 export type Patient = {
   id: string;
@@ -16,8 +17,8 @@ export type Patient = {
   disabilityType?: string;
   careNeeds?: string;
   notes?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt: Timestamp | Date | string;
+  updatedAt: Timestamp | Date | string;
 };
 
 export type Staff = {

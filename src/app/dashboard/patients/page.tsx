@@ -3,12 +3,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -25,28 +25,106 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import {
   Plus,
   Search,
   User,
   Phone,
   Calendar,
 } from 'lucide-react';
-import { patients, type Patient } from '@/lib/data';
 import { differenceInYears, parseISO } from 'date-fns';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+import type { Patient } from '@/lib/data';
+import { useToast } from '@/hooks/use-toast';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useRole } from '@/hooks/useRole';
+
+const formSchema = z.object({
+    name: z.string().min(1, 'Full name is required.'),
+    dateOfBirth: z.string().optional(),
+    disabilityType: z.string().optional(),
+    careNeeds: z.string().optional(),
+    emergencyContactName: z.string().optional(),
+    emergencyContactPhone: z.string().optional(),
+    notes: z.string().optional(),
+});
+
+type FormValues = z.infer<typeof formSchema>;
+
 
 function AddPatientDialog() {
   const [open, setOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const firestore = useFirestore();
+  const { toast } = useToast();
+  const { role } = useRole();
 
-  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-    // In a real app, you would handle form submission here.
-    // For this prototype, we'll just simulate it.
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsSubmitting(false);
+  const form = useForm<FormValues>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      name: '',
+      dateOfBirth: '',
+      disabilityType: '',
+      careNeeds: '',
+      emergencyContactName: '',
+      emergencyContactPhone: '',
+      notes: '',
+    },
+  });
+
+  const { isSubmitting } = form.formState;
+
+  const handleSubmit = async (values: FormValues) => {
+    if (!firestore) return;
+
+    const patientsRef = collection(firestore, 'patients');
+    const newPatientDoc = {
+        name: values.name,
+        dateOfBirth: values.dateOfBirth,
+        disabilityType: values.disabilityType,
+        careNeeds: values.careNeeds,
+        emergencyContact: {
+            name: values.emergencyContactName || '',
+            phone: values.emergencyContactPhone || '',
+            relation: '', // Defaulting this, can be added to form if needed
+        },
+        notes: values.notes,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        avatarUrl: `https://picsum.photos/seed/${Math.random()}/200/200`,
+        avatarHint: 'person portrait',
+    };
+
+    addDoc(patientsRef, newPatientDoc).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+          path: patientsRef.path,
+          operation: 'create',
+          requestResourceData: newPatientDoc,
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
+
+    toast({
+        title: "Patient Created",
+        description: `${values.name} has been added to the system.`,
+    });
+    
+    form.reset();
     setOpen(false);
   };
+
+  if (role !== 'admin') {
+    return null;
+  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -63,88 +141,117 @@ function AddPatientDialog() {
             Enter the patient's information to create their profile.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2 sm:col-span-2">
-              <Label htmlFor="name">Full Name *</Label>
-              <Input
-                id="name"
-                name="name"
-                required
-                placeholder="Patient's full name"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="date_of_birth">Date of Birth</Label>
-              <Input id="date_of_birth" name="date_of_birth" type="date" />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="disability_type">Disability Type</Label>
-              <Input
-                id="disability_type"
-                name="disability_type"
-                placeholder="e.g., Physical, Cognitive"
-              />
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="care_needs">Care Needs</Label>
-            <Textarea
-              id="care_needs"
-              name="care_needs"
-              placeholder="Describe specific care requirements..."
-              rows={3}
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+            <FormField
+              control={form.control}
+              name="name"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Full Name *</FormLabel>
+                  <FormControl>
+                    <Input placeholder="Patient's full name" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-2">
-              <Label htmlFor="emergency_contact_name">
-                Emergency Contact Name
-              </Label>
-              <Input
-                id="emergency_contact_name"
-                name="emergency_contact_name"
-                placeholder="Contact name"
-              />
+            <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                control={form.control}
+                name="dateOfBirth"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Date of Birth</FormLabel>
+                    <FormControl>
+                        <Input type="date" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                control={form.control}
+                name="disabilityType"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Disability Type</FormLabel>
+                    <FormControl>
+                        <Input placeholder="e.g., Physical, Cognitive" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="emergency_contact_phone">
-                Emergency Contact Phone
-              </Label>
-              <Input
-                id="emergency_contact_phone"
-                name="emergency_contact_phone"
-                type="tel"
-                placeholder="+1 234 567 8900"
-              />
+            <FormField
+              control={form.control}
+              name="careNeeds"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Care Needs</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Describe specific care requirements..." rows={3} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+                <FormField
+                control={form.control}
+                name="emergencyContactName"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Emergency Contact Name</FormLabel>
+                    <FormControl>
+                        <Input placeholder="Contact name" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
+                <FormField
+                control={form.control}
+                name="emergencyContactPhone"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Emergency Contact Phone</FormLabel>
+                    <FormControl>
+                        <Input type="tel" placeholder="+1 234 567 8900" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
             </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Additional Notes</Label>
-            <Textarea
-              id="notes"
+            <FormField
+              control={form.control}
               name="notes"
-              placeholder="Any additional information..."
-              rows={2}
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Additional Notes</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Any additional information..." rows={2} {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
             />
-          </div>
-
-          <div className="flex justify-end gap-3 pt-4">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" disabled={isSubmitting}>
-              {isSubmitting ? 'Creating...' : 'Create Patient'}
-            </Button>
-          </div>
-        </form>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setOpen(false)}
+              >
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? 'Creating...' : 'Create Patient'}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
@@ -198,8 +305,17 @@ function PatientCard({ patient }: { patient: Patient }) {
 
 export default function PatientsPage() {
   const [searchQuery, setSearchQuery] = useState('');
+  const firestore = useFirestore();
+  const { role } = useRole();
+  
+  const patientsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'patients');
+  }, [firestore]);
 
-  const filteredPatients = patients.filter(
+  const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
+
+  const filteredPatients = patients?.filter(
     patient =>
       patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       patient.disabilityType?.toLowerCase().includes(searchQuery.toLowerCase())
@@ -228,8 +344,12 @@ export default function PatientsPage() {
           />
         </div>
       </div>
-        
-      {filteredPatients.length > 0 ? (
+      
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+        </div>
+      ) : filteredPatients && filteredPatients.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredPatients.map(patient => (
             <PatientCard key={patient.id} patient={patient} />
@@ -245,7 +365,7 @@ export default function PatientsPage() {
                 ? 'No patients match your search criteria.'
                 : 'Add your first patient to get started.'}
             </p>
-            {!searchQuery && (
+            {!searchQuery && role === 'admin' && (
               <div className="mt-4">
                 <AddPatientDialog />
               </div>
