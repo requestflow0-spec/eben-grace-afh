@@ -40,7 +40,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { patients } from '@/lib/data';
-import { Loader2, Wand2, RefreshCw } from 'lucide-react';
+import { Loader2, Wand2, RefreshCw, FileText } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 
