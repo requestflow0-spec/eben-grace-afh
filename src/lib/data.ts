@@ -163,7 +163,7 @@ export const appointments: Appointment[] = [
 ];
 
 export const tasks: Task[] = [
-  { id: 't1', description: 'Administer morning medication', patientName: 'Margaret O\'Connell', dueDate: 'Today', completed: false },
-  { id: 't2', description: 'Update care plan notes', patientName: 'Isabelle Moreau', dueDate: 'Today', completed: false },
-  { id: 't3', description: 'Check vital signs', patientName: 'Arthur Pendelton', dueDate: 'Today', completed: true },
+  { id: 't1', description: 'Administer morning medication', patientName: 'Margaret O\'Connell', dueDate: new Date().toISOString(), completed: false },
+  { id: 't2', description: 'Update care plan notes', patientName: 'Isabelle Moreau', dueDate: new Date().toISOString(), completed: false },
+  { id: 't3', description: 'Check vital signs', patientName: 'Arthur Pendelton', dueDate: new Date().toISOString(), completed: true },
 ];
