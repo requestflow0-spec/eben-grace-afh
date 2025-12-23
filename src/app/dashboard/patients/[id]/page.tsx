@@ -3,18 +3,33 @@
 import { useState, use } from 'react';
 import Link from 'next/link';
 import {
+  Activity,
+  AlertTriangle,
   ArrowLeft,
+  Bed,
   Calendar,
   ClipboardList,
   Edit,
   FileText,
   Phone,
   Plus,
+  Smile,
   User,
   UserPlus,
   X,
 } from 'lucide-react';
 import { format, differenceInYears, parseISO } from 'date-fns';
+import {
+  BarChart,
+  Bar,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+} from 'recharts';
 
 import { patients, staff, tasks } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -45,7 +60,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+
+const sleepData = Array.from({ length: 30 }, (_, i) => ({
+  day: `Day ${i + 1}`,
+  hours: 6 + Math.random() * 3, // Random sleep between 6 and 9 hours
+  interruptions: Math.floor(Math.random() * 4),
+}));
+
+const behaviorData = Array.from({ length: 30 }, (_, i) => ({
+  day: `Day ${i + 1}`,
+  positive: Math.floor(Math.random() * 5),
+  negative: Math.floor(Math.random() * 3),
+}));
 
 export default function PatientDetailPage({
   params,
@@ -258,60 +285,127 @@ export default function PatientDetailPage({
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle>Care Records</CardTitle>
-                <CardDescription>Recent daily care records</CardDescription>
-              </div>
-              <Button size="sm">
-                <Plus className="mr-2 h-4 w-4" />
-                Start Today's Record
-              </Button>
-            </CardHeader>
-            <CardContent>
-              {tasks && tasks.length > 0 ? (
-                <div className="space-y-2">
-                  {tasks
-                    .filter(t => t.patientName === patient.name)
-                    .slice(0, 5)
-                    .map(task => (
-                      <div
-                        key={task.id}
-                        className="flex items-center justify-between p-3 rounded-lg border"
-                      >
-                        <div className="flex items-center gap-3">
-                          <Calendar className="h-4 w-4 text-muted-foreground" />
-                          <div>
-                            <p className="font-medium text-sm">
-                              {format(
-                                new Date(task.dueDate),
-                                'EEEE, MMMM d, yyyy'
-                              )}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              By{' '}
-                              {staff.find(s => s.role === 'Nurse')?.name ||
-                                'Unknown'}
-                            </p>
+          <Tabs defaultValue="care-records">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="care-records">
+                <ClipboardList className="mr-2 h-4 w-4" />
+                Care Records
+              </TabsTrigger>
+              <TabsTrigger value="sleep-log">
+                <Bed className="mr-2 h-4 w-4" />
+                Sleep Log
+              </TabsTrigger>
+              <TabsTrigger value="behavior-tracking">
+                <Activity className="mr-2 h-4 w-4" />
+                Behavior
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="care-records">
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <div>
+                    <CardTitle>Care Records</CardTitle>
+                    <CardDescription>
+                      Recent daily care records
+                    </CardDescription>
+                  </div>
+                  <Button size="sm">
+                    <Plus className="mr-2 h-4 w-4" />
+                    Start Today's Record
+                  </Button>
+                </CardHeader>
+                <CardContent>
+                  {tasks && tasks.length > 0 ? (
+                    <div className="space-y-2">
+                      {tasks
+                        .filter(t => t.patientName === patient.name)
+                        .slice(0, 5)
+                        .map(task => (
+                          <div
+                            key={task.id}
+                            className="flex items-center justify-between p-3 rounded-lg border"
+                          >
+                            <div className="flex items-center gap-3">
+                              <Calendar className="h-4 w-4 text-muted-foreground" />
+                              <div>
+                                <p className="font-medium text-sm">
+                                  {format(
+                                    new Date(task.dueDate),
+                                    'EEEE, MMMM d, yyyy'
+                                  )}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  By{' '}
+                                  {staff.find(s => s.role === 'Nurse')
+                                    ?.name || 'Unknown'}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge
+                              variant={
+                                task.completed ? 'secondary' : 'default'
+                              }
+                            >
+                              {task.completed ? 'Completed' : 'Pending'}
+                            </Badge>
                           </div>
-                        </div>
-                        <Badge
-                          variant={task.completed ? 'secondary' : 'default'}
-                        >
-                          {task.completed ? 'Completed' : 'Pending'}
-                        </Badge>
-                      </div>
-                    ))}
-                </div>
-              ) : (
-                <div className="text-center py-8 text-muted-foreground">
-                  <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                  <p>No records yet</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                        ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                      <p>No records yet</p>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="sleep-log">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Monthly Sleep Log</CardTitle>
+                  <CardDescription>
+                    Tracking sleep patterns over the last 30 days.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <LineChart data={sleepData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="day" fontSize={12} />
+                      <YAxis yAxisId="left" label={{ value: 'Hours', angle: -90, position: 'insideLeft' }} fontSize={12} />
+                      <YAxis yAxisId="right" orientation="right" label={{ value: 'Interruptions', angle: -90, position: 'insideRight' }} fontSize={12} />
+                      <Tooltip />
+                      <Line yAxisId="left" type="monotone" dataKey="hours" stroke="hsl(var(--primary))" name="Sleep Hours" />
+                      <Line yAxisId="right" type="monotone" dataKey="interruptions" stroke="hsl(var(--accent))" name="Interruptions" />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </TabsContent>
+            <TabsContent value="behavior-tracking">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Behavior Tracking</CardTitle>
+                  <CardDescription>
+                    Monitoring behavioral patterns over the last 30 days.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResponsiveContainer width="100%" height={250}>
+                    <BarChart data={behaviorData}>
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="day" fontSize={12} />
+                      <YAxis fontSize={12} />
+                      <Tooltip />
+                      <Bar dataKey="positive" fill="hsl(var(--primary))" name="Positive" stackId="a" />
+                      <Bar dataKey="negative" fill="hsl(var(--destructive))" name="Negative" stackId="a" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
 
         <div className="space-y-6">
@@ -424,7 +518,9 @@ export default function PatientDetailPage({
                     Profile Created
                   </span>
                   <span className="text-sm">
-                    {patient.createdAt ? format(new Date(patient.createdAt), 'MMM d, yyyy') : 'N/A'}
+                    {patient.createdAt
+                      ? format(new Date(patient.createdAt), 'MMM d, yyyy')
+                      : 'N/A'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -432,7 +528,9 @@ export default function PatientDetailPage({
                     Last Updated
                   </span>
                   <span className="text-sm">
-                    {patient.updatedAt ? format(new Date(patient.updatedAt), 'MMM d, yyyy') : 'N/A'}
+                    {patient.updatedAt
+                      ? format(new Date(patient.updatedAt), 'MMM d, yyyy')
+                      : 'N/A'}
                   </span>
                 </div>
               </div>
