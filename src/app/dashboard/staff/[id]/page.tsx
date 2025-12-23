@@ -6,7 +6,7 @@ import {
   ArrowLeft,
   Mail,
   Phone,
-  Calendar,
+  Calendar as CalendarIcon,
   Briefcase,
   Edit,
   Plus,
@@ -42,7 +42,89 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Input } from '@/components/ui/input';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+function DateTimePicker() {
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [startTime, setStartTime] = useState('09:00');
+  const [endTime, setEndTime] = useState('17:00');
+
+  const timeOptions = Array.from({ length: 24 * 2 }, (_, i) => {
+    const hour = Math.floor(i / 2);
+    const minute = i % 2 === 0 ? '00' : '30';
+    const formattedHour = hour.toString().padStart(2, '0');
+    return `${formattedHour}:${minute}`;
+  });
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <Label>Date</Label>
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              variant={'outline'}
+              className={cn(
+                'w-full justify-start text-left font-normal',
+                !date && 'text-muted-foreground'
+              )}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {date ? format(date, 'PPP') : <span>Pick a date</span>}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0">
+            <Calendar
+              mode="single"
+              selected={date}
+              onSelect={setDate}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <Label htmlFor="start-time">Start Time</Label>
+          <Select value={startTime} onValueChange={setStartTime}>
+            <SelectTrigger id="start-time">
+              <SelectValue placeholder="Start time" />
+            </SelectTrigger>
+            <SelectContent>
+              {timeOptions.map(time => (
+                <SelectItem key={`start-${time}`} value={time}>
+                  {time}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <Label htmlFor="end-time">End Time</Label>
+          <Select value={endTime} onValueChange={setEndTime}>
+            <SelectTrigger id="end-time">
+              <SelectValue placeholder="End time" />
+            </SelectTrigger>
+            <SelectContent>
+              {timeOptions.map(time => (
+                <SelectItem key={`end-${time}`} value={time}>
+                  {time}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function StaffDetailPage({
   params,
@@ -171,9 +253,8 @@ export default function StaffDetailPage({
                 <DialogHeader>
                   <DialogTitle>Edit Schedule</DialogTitle>
                 </DialogHeader>
-                <div className="py-4 space-y-2">
-                  <Label htmlFor="schedule">Schedule Details</Label>
-                  <Input id="schedule" defaultValue={member.schedule} />
+                <div className="py-4">
+                  <DateTimePicker />
                 </div>
                 <DialogFooter>
                   <DialogClose asChild>
@@ -188,7 +269,7 @@ export default function StaffDetailPage({
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-3">
-              <Calendar className="h-5 w-5 text-primary" />
+              <CalendarIcon className="h-5 w-5 text-primary" />
               <p className="font-medium">{member.schedule}</p>
             </div>
           </CardContent>
@@ -314,5 +395,3 @@ export default function StaffDetailPage({
     </div>
   );
 }
-
-    
