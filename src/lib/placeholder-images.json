@@ -1,3 +1,58 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "patient1",
+      "description": "Avatar for patient 1",
+      "imageUrl": "https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHx3b21hbiUyMHBvcnRyYWl0fGVufDB8fHx8MTc2NjQxMzczMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman portrait"
+    },
+    {
+      "id": "patient2",
+      "description": "Avatar for patient 2",
+      "imageUrl": "https://images.unsplash.com/photo-1607031542107-f6f46b5d54e9?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw0fHxtYW4lMjBwb3J0cmFpdHxlbnwwfHx8fDE3NjYzODI4MjR8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "man portrait"
+    },
+    {
+      "id": "patient3",
+      "description": "Avatar for patient 3",
+      "imageUrl": "https://images.unsplash.com/photo-1580883344775-c5a84aa3b7e7?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw5fHxwZXJzb24lMjBlbGRlcmx5fGVufDB8fHx8MTc2NjQ1OTIxMHww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person elderly"
+    },
+    {
+      "id": "patient4",
+      "description": "Avatar for patient 4",
+      "imageUrl": "https://images.unsplash.com/photo-1594744803329-e58b31de8bf5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHx3b21hbiUyMHNtaWxpbmd8ZW58MHx8fHwxNzY2MzYyMDAzfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "woman smiling"
+    },
+    {
+      "id": "staff1",
+      "description": "Avatar for staff 1",
+      "imageUrl": "https://images.unsplash.com/photo-1758691461530-b215ed4ede6a?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw1fHxkb2N0b3IlMjBzbWlsaW5nfGVufDB8fHx8MTc2NjM3NzMxMnww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "doctor smiling"
+    },
+    {
+      "id": "staff2",
+      "description": "Avatar for staff 2",
+      "imageUrl": "https://images.unsplash.com/photo-1643297653753-2d3f459edc6b?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw4fHxudXJzZSUyMHByb2Zlc3Npb25hbHxlbnwwfHx8fDE3NjY0NTkyMTB8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "nurse professional"
+    },
+    {
+      "id": "staff3",
+      "description": "Avatar for staff 3",
+      "imageUrl": "https://images.unsplash.com/photo-1764314138160-5f04f4a50dae?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHw2fHx0aGVyYXBpc3QlMjBwcm9mZXNzaW9uYWx8ZW58MHx8fHwxNzY2NDU5MjExfDA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "therapist professional"
+    },
+    {
+      "id": "user-avatar",
+      "description": "Placeholder for user avatar",
+      "imageUrl": "https://images.unsplash.com/photo-1529995049601-ef63465a463f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxMHx8cGVyc29uJTIwcHJvZmlsZXxlbnwwfHx8fDE3NjY0MTQ5Njd8MA&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "person profile"
+    },
+    {
+      "id": "landing-hero",
+      "description": "Hero image for landing page",
+      "imageUrl": "https://images.unsplash.com/photo-1576091160550-2173dba999ef?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3NDE5ODJ8MHwxfHNlYXJjaHwxfHxoZWFsdGhjYXJlJTIwcHJvZmVzc2lvbmFsfGVufDB8fHx8MTc2NjQ1OTIxMXww&ixlib=rb-4.1.0&q=80&w=1080",
+      "imageHint": "healthcare professional"
+    }
+  ]
 }
