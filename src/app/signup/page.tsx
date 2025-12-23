@@ -9,7 +9,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
+import { collection, query, where, getDocs, writeBatch, doc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -52,7 +52,7 @@ export default function SignupPage() {
       const invitationDoc = querySnapshot.docs[0];
       
       // 1. Create a new staff profile
-      const staffRef = collection(firestore, 'staff');
+      const staffDocRef = doc(firestore, 'staff', userId);
       const newStaffDoc = {
         id: userId,
         name: userName,
@@ -64,7 +64,7 @@ export default function SignupPage() {
         avatarUrl: `https://picsum.photos/seed/${userId}/200/200`,
         avatarHint: 'person professional',
       };
-      batch.set(collection(firestore, 'staff', userId), newStaffDoc);
+      batch.set(staffDocRef, newStaffDoc);
 
       // 2. Delete the invitation
       batch.delete(invitationDoc.ref);
@@ -98,6 +98,13 @@ export default function SignupPage() {
       await updateProfile(user, {
         displayName: name,
       });
+      
+      // If the user is the admin, do not process them as staff.
+      if (email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
+        toast({ title: 'Admin account created successfully!' });
+        router.push('/dashboard');
+        return;
+      }
 
       // After user is created, check for staff invitation
       await processStaffInvitation(user.uid, email, name);
