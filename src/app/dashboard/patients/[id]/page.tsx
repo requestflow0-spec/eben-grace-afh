@@ -58,6 +58,8 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
+  DialogFooter,
+  DialogClose,
 } from '@/components/ui/dialog';
 import {
   Select,
@@ -186,19 +188,23 @@ export default function PatientDetailPage({
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [tasks, setTasks] = useState<Task[]>(initialTasks);
+  const [isCreateRecordDialogOpen, setIsCreateRecordDialogOpen] = useState(false);
+  const [newRecordDescription, setNewRecordDescription] = useState('');
 
   const patient = patients.find(p => p.id === id);
 
   const handleCreateTodayRecord = () => {
-    if (!patient) return;
+    if (!patient || !newRecordDescription) return;
     const newRecord: Task = {
       id: `t${tasks.length + 1}`,
-      description: 'New daily record',
+      description: newRecordDescription,
       patientName: patient.name,
       dueDate: new Date().toISOString(),
       completed: false,
     };
     setTasks([newRecord, ...tasks]);
+    setNewRecordDescription('');
+    setIsCreateRecordDialogOpen(false);
   };
 
   const handleToggleRecordStatus = (taskId: string) => {
@@ -425,10 +431,40 @@ export default function PatientDetailPage({
                       Behavior
                     </TabsTrigger>
                   </TabsList>
-                <Button size="sm" onClick={handleCreateTodayRecord}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Start Today's Record
-                </Button>
+                <Dialog open={isCreateRecordDialogOpen} onOpenChange={setIsCreateRecordDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button size="sm">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Start Today's Record
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New Care Record</DialogTitle>
+                      <DialogDescription>
+                        Log a new event, observation, or task for {patient.name} for today.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4 space-y-2">
+                        <Label htmlFor="record-description">Description</Label>
+                        <Textarea 
+                            id="record-description"
+                            placeholder="e.g., Patient seemed more energetic today and enjoyed the afternoon activity."
+                            value={newRecordDescription}
+                            onChange={(e) => setNewRecordDescription(e.target.value)}
+                            rows={4}
+                        />
+                    </div>
+                    <DialogFooter>
+                      <DialogClose asChild>
+                        <Button variant="outline">Cancel</Button>
+                      </DialogClose>
+                      <Button onClick={handleCreateTodayRecord} disabled={!newRecordDescription}>
+                        Save Record
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
               </CardHeader>
               <CardContent>
                 <TabsContent value="care-records">
@@ -436,25 +472,24 @@ export default function PatientDetailPage({
                       <div className="space-y-2">
                         {tasks
                           .filter(t => t.patientName === patient.name)
-                          .slice(0, 5)
                           .map(task => (
                             <div
                               key={task.id}
-                              className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors cursor-pointer"
-                              onClick={() => {
-                                /* In a real app, this would navigate to the record details */
-                              }}
+                              className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
                             >
-                              <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-3 flex-1">
                                 <Calendar className="h-4 w-4 text-muted-foreground" />
-                                <div>
+                                <div className="flex-1">
                                   <p className="font-medium text-sm">
                                     {format(
                                       new Date(task.dueDate),
                                       'EEEE, MMMM d, yyyy'
                                     )}
                                   </p>
-                                  <p className="text-xs text-muted-foreground">
+                                  <p className="text-sm text-muted-foreground mt-1">
+                                    {task.description}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground mt-1">
                                     By{' '}
                                     {staff.find(s => s.role === 'Nurse')
                                       ?.name || 'Unknown'}
