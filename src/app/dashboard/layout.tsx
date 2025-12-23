@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import * as React from 'react';
 import { useUser, useAuth } from '@/firebase';
 import { signOut } from 'firebase/auth';
+import { useRole } from '@/hooks/useRole';
 
 import {
   SidebarProvider,
@@ -42,13 +43,13 @@ import {
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const navItems = [
-  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
-  { href: '/dashboard/patients', icon: Users, label: 'Patients' },
-  { href: '/dashboard/staff', icon: UsersRound, label: 'Staff' },
-  { href: '/dashboard/records', icon: ClipboardList, label: 'Daily Records' },
-  { href: '/dashboard/reports', icon: FileText, label: 'Reports' },
-  { href: '/dashboard/settings', icon: Settings, label: 'Settings' },
+const allNavItems = [
+  { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'staff'] },
+  { href: '/dashboard/patients', icon: Users, label: 'Patients', roles: ['admin', 'staff'] },
+  { href: '/dashboard/staff', icon: UsersRound, label: 'Staff', roles: ['admin'] },
+  { href: '/dashboard/records', icon: ClipboardList, label: 'Daily Records', roles: ['admin', 'staff'] },
+  { href: '/dashboard/reports', icon: FileText, label: 'Reports', roles: ['admin'] },
+  { href: '/dashboard/settings', icon: Settings, label: 'Settings', roles: ['admin', 'staff'] },
 ];
 
 export default function DashboardLayout({
@@ -59,14 +60,20 @@ export default function DashboardLayout({
   const pathname = usePathname();
   const router = useRouter();
   const { user, isUserLoading } = useUser();
+  const { role, isLoading: isRoleLoading } = useRole();
   
+  const navItems = React.useMemo(() => {
+    if (!role) return [];
+    return allNavItems.filter(item => item.roles.includes(role));
+  }, [role]);
+
   React.useEffect(() => {
     if (!isUserLoading && !user) {
       router.replace('/login');
     }
   }, [user, isUserLoading, router]);
 
-  if (isUserLoading || !user) {
+  if (isUserLoading || isRoleLoading || !user) {
     return (
       <div className="flex h-screen w-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -140,6 +147,7 @@ function UserDropdown() {
   const auth = useAuth();
   const router = useRouter();
   const { user } = useUser();
+  const { role } = useRole();
   
   const handleLogout = async () => {
     try {

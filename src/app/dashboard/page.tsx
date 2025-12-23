@@ -26,6 +26,9 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { useUser } from '@/firebase';
+import { useRole } from '@/hooks/useRole';
+import { useMemo } from 'react';
 
 function StatCard({
   title,
@@ -57,7 +60,20 @@ function StatCard({
 }
 
 function RecentRecordsList() {
+  const { user } = useUser();
+  const { role } = useRole();
+  const patientData = useMemo(() => {
+    if (role === 'staff') {
+      const assignedPatient = staff.find(s => s.id === user?.uid)?.assignedPatients?.[0];
+      return patients.filter(p => p.id === assignedPatient);
+    }
+    return patients;
+  }, [role, user]);
+
+  const patientNames = useMemo(() => patientData.map(p => p.name), [patientData]);
+
   const records = tasks
+    .filter(t => patientNames.includes(t.patientName))
     .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())
     .slice(0, 5);
 
@@ -100,22 +116,39 @@ function RecentRecordsList() {
 }
 
 export default function DashboardPage() {
-  const pendingTasks = tasks.filter(t => !t.completed).length;
+  const { user } = useUser();
+  const { role } = useRole();
+
+  const patientData = useMemo(() => {
+    if (role === 'staff') {
+        const staffMember = staff.find(s => s.id === user?.uid);
+        if (staffMember?.assignedPatients) {
+            return patients.filter(p => staffMember.assignedPatients.includes(p.id));
+        }
+        return [];
+    }
+    return patients;
+  }, [role, user]);
+
+  const patientNames = useMemo(() => patientData.map(p => p.name), [patientData]);
+  const filteredTasks = useMemo(() => tasks.filter(t => patientNames.includes(t.patientName)), [tasks, patientNames]);
+
+  const pendingTasks = filteredTasks.filter(t => !t.completed).length;
   const today = new Date();
-  const todayRecords = tasks.filter(
+  const todayRecords = filteredTasks.filter(
     t => new Date(t.dueDate).toDateString() === today.toDateString()
   ).length;
 
   const completionRate =
-    patients?.length && todayRecords !== undefined
-      ? `${Math.round((todayRecords / Math.max(patients.length, 1)) * 100)}%`
+    patientData?.length && todayRecords !== undefined
+      ? `${Math.round((todayRecords / Math.max(patientData.length, 1)) * 100)}%`
       : '0%';
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight font-headline">
-          Welcome back, Jane
+          Welcome back, {user?.displayName?.split(' ')[0] || 'User'}
         </h1>
         <p className="text-muted-foreground">
           Here's an overview of today's care activities
@@ -125,9 +158,9 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Patients"
-          value={patients?.length || 0}
+          value={patientData?.length || 0}
           icon={<Users className="h-4 w-4 text-primary" />}
-          description="All active patients"
+          description={role === 'admin' ? "All active patients" : "Your assigned patients"}
         />
         <StatCard
           title="Today's Records"
@@ -167,18 +200,22 @@ export default function DashboardPage() {
                 <span>View Patients</span>
               </Link>
             </Button>
-            <Button asChild variant="secondary" className="h-auto py-4 flex-col gap-2">
-              <Link href="/dashboard/patients">
-                <Users className="h-5 w-5" />
-                <span>Add Patient</span>
-              </Link>
-            </Button>
-            <Button asChild variant="secondary" className="h-auto py-4 flex-col gap-2">
-              <Link href="/dashboard/reports">
-                <TrendingUp className="h-5 w-5" />
-                <span>Generate Report</span>
-              </Link>
-            </Button>
+            {role === 'admin' && (
+              <>
+                <Button asChild variant="secondary" className="h-auto py-4 flex-col gap-2">
+                  <Link href="/dashboard/patients">
+                    <Users className="h-5 w-5" />
+                    <span>Add Patient</span>
+                  </Link>
+                </Button>
+                <Button asChild variant="secondary" className="h-auto py-4 flex-col gap-2">
+                  <Link href="/dashboard/reports">
+                    <TrendingUp className="h-5 w-5" />
+                    <span>Generate Report</span>
+                  </Link>
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
 

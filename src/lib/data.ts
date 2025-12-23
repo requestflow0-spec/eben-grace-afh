@@ -29,6 +29,7 @@ export type Staff = {
   avatarUrl: string;
   avatarHint: string;
   available: boolean;
+  assignedPatients: string[];
 };
 
 export type Appointment = {

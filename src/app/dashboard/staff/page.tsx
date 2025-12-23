@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, Mail, User } from 'lucide-react';
+import { Plus, Search, Mail, Users } from 'lucide-react';
 import { staff, type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore } from '@/firebase';
@@ -192,7 +192,7 @@ export default function StaffPage() {
       ) : (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
-            <User className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="font-semibold text-lg mb-1">No staff found</h3>
             <p className="text-muted-foreground text-center max-w-sm">
               {searchQuery
