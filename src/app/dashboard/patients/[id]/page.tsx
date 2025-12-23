@@ -37,7 +37,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import { patients, staff, tasks as initialTasks, Task } from '@/lib/data';
+import { staff, type Task } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -70,6 +70,12 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
+import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
+import type { Patient } from '@/lib/data';
+import { Skeleton } from '@/components/ui/skeleton';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 
 const behaviorData = Array.from({ length: 30 }, (_, i) => ({
@@ -178,42 +184,130 @@ function SleepLogViewer() {
     );
 }
 
+function PatientDetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 mb-6">
+        <Skeleton className="h-10 w-10" />
+        <div className="flex-1 space-y-2">
+          <Skeleton className="h-8 w-1/2" />
+          <Skeleton className="h-4 w-1/3" />
+        </div>
+        <Skeleton className="h-10 w-24" />
+      </div>
+      <div className="grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-1/3" />
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <Skeleton className="h-16 w-full" />
+                <Skeleton className="h-16 w-full" />
+              </div>
+              <Skeleton className="h-12 w-full" />
+              <Skeleton className="h-20 w-full" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-10 w-full" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-40 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-1/2" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-24 w-full" />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <Skeleton className="h-6 w-1/2" />
+            </CardHeader>
+            <CardContent>
+              <Skeleton className="h-20 w-full" />
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function PatientDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
+  const firestore = useFirestore();
+
+  const patientRef = useMemoFirebase(() => {
+    if (!firestore || !id) return null;
+    return doc(firestore, 'patients', id);
+  }, [firestore, id]);
+
+  const { data: patient, isLoading: isPatientLoading } = useDoc<Patient>(patientRef);
+
+  const recordsQuery = useMemoFirebase(() => {
+      if (!firestore || !id) return null;
+      return collection(firestore, `patients/${id}/dailyRecords`);
+  }, [firestore, id]);
+
+  const { data: tasks, isLoading: areTasksLoading } = useCollection<Task>(recordsQuery);
+
   const [isEditing, setIsEditing] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
-  const [tasks, setTasks] = useState<Task[]>(initialTasks);
   const [isCreateRecordDialogOpen, setIsCreateRecordDialogOpen] = useState(false);
   const [newRecordDescription, setNewRecordDescription] = useState('');
 
-  const patient = patients.find(p => p.id === id);
-
   const handleCreateTodayRecord = () => {
-    if (!patient || !newRecordDescription) return;
-    const newRecord: Task = {
-      id: `t${tasks.length + 1}`,
-      description: newRecordDescription,
-      patientName: patient.name,
-      dueDate: new Date().toISOString(),
-      completed: false,
+    if (!firestore || !id || !newRecordDescription) return;
+    const recordsRef = collection(firestore, `patients/${id}/dailyRecords`);
+    const newRecord = {
+        description: newRecordDescription,
+        patientName: patient?.name || '',
+        date: new Date().toISOString(),
+        completed: false,
     };
-    setTasks([newRecord, ...tasks]);
+    addDoc(recordsRef, newRecord).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: recordsRef.path,
+            operation: 'create',
+            requestResourceData: newRecord,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
     setNewRecordDescription('');
     setIsCreateRecordDialogOpen(false);
   };
 
-  const handleToggleRecordStatus = (taskId: string) => {
-    setTasks(currentTasks =>
-      currentTasks.map(task =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      )
-    );
+  const handleToggleRecordStatus = (taskId: string, currentStatus: boolean) => {
+    if (!firestore || !id) return;
+    const recordRef = doc(firestore, `patients/${id}/dailyRecords`, taskId);
+    updateDoc(recordRef, { completed: !currentStatus }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: recordRef.path,
+            operation: 'update',
+            requestResourceData: { completed: !currentStatus },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
+
+  if (isPatientLoading || areTasksLoading) {
+    return <PatientDetailSkeleton />;
+  }
 
   if (!patient) {
     return (
@@ -308,7 +402,7 @@ export default function PatientDetailPage({
                       <Input
                         id="emergency_contact_name"
                         name="emergency_contact_name"
-                        defaultValue={patient.emergencyContact.name}
+                        defaultValue={patient.emergencyContact?.name}
                       />
                     </div>
                     <div className="space-y-2 sm:col-span-2">
@@ -318,7 +412,7 @@ export default function PatientDetailPage({
                       <Input
                         id="emergency_contact_phone"
                         name="emergency_contact_phone"
-                        defaultValue={patient.emergencyContact.phone}
+                        defaultValue={patient.emergencyContact?.phone}
                       />
                     </div>
                   </div>
@@ -392,9 +486,9 @@ export default function PatientDetailPage({
                     <div>
                       <p className="text-sm font-medium">Emergency Contact</p>
                       <p className="text-sm text-muted-foreground">
-                        {patient.emergencyContact.name} (
-                        {patient.emergencyContact.relation}) &bull;{' '}
-                        {patient.emergencyContact.phone}
+                        {patient.emergencyContact?.name} (
+                        {patient.emergencyContact?.relation}) &bull;{' '}
+                        {patient.emergencyContact?.phone}
                       </p>
                     </div>
                   </div>
@@ -470,9 +564,7 @@ export default function PatientDetailPage({
                 <TabsContent value="care-records">
                     {tasks && tasks.length > 0 ? (
                       <div className="space-y-2">
-                        {tasks
-                          .filter(t => t.patientName === patient.name)
-                          .map(task => (
+                        {tasks.map(task => (
                             <div
                               key={task.id}
                               className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
@@ -502,7 +594,7 @@ export default function PatientDetailPage({
                                 }
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  handleToggleRecordStatus(task.id);
+                                  handleToggleRecordStatus(task.id, task.completed);
                                 }}
                                 className="cursor-pointer"
                               >
@@ -640,7 +732,7 @@ export default function PatientDetailPage({
                     Total Records
                   </span>
                   <span className="font-semibold">
-                    {tasks.filter(t => t.patientName === patient.name).length}
+                    {tasks?.length || 0}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
@@ -649,7 +741,7 @@ export default function PatientDetailPage({
                   </span>
                   <span className="text-sm">
                     {patient.createdAt
-                      ? format(new Date(patient.createdAt), 'MMM d, yyyy')
+                      ? format(new Date((patient.createdAt as any).seconds * 1000), 'MMM d, yyyy')
                       : 'N/A'}
                   </span>
                 </div>
@@ -659,7 +751,7 @@ export default function PatientDetailPage({
                   </span>
                   <span className="text-sm">
                     {patient.updatedAt
-                      ? format(new Date(patient.updatedAt), 'MMM d, yyyy')
+                      ? format(new Date((patient.updatedAt as any).seconds * 1000), 'MMM d, yyyy')
                       : 'N/A'}
                   </span>
                 </div>
@@ -671,3 +763,5 @@ export default function PatientDetailPage({
     </div>
   );
 }
+
+    

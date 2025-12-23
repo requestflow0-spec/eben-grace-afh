@@ -50,7 +50,11 @@ export type Task = {
   completed: boolean;
 };
 
+// This mock data is kept for reference but is no longer used in the main pages.
+// The app now fetches live data from Firestore.
 export const patients: Patient[] = [];
 export const staff: Staff[] = [];
 export const appointments: Appointment[] = [];
 export const tasks: Task[] = [];
+
+    
