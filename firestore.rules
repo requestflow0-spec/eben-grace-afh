@@ -11,8 +11,9 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
+    // Admin is now defined by a specific email address
     function isAdmin() {
-      return exists(/databases/$(database)/documents/roles_admin/$(request.auth.uid));
+      return request.auth.email == 'admin@carehub.pro';
     }
     
     // User profile is readable/writable only by the owner
@@ -44,11 +45,6 @@ service cloud.firestore {
       allow create, update, delete: if isAdmin();
     }
     
-    // Admin roles can only be managed by other admins
-    match /roles_admin/{userId} {
-      allow get, list, create, delete: if isAdmin();
-    }
-
     // Invitations can be read by anyone during signup, but only created/deleted by admins.
     match /invitations/{invitationId} {
       allow get, list: if isSignedIn();

@@ -129,14 +129,6 @@
         }
       },
       {
-        "path": "/roles_admin/{userId}",
-        "definition": {
-          "entityName": "role",
-          "schema": { "type": "object", "properties": {} },
-          "description": "Indicates admin role by document existence."
-        }
-      },
-      {
         "path": "/invitations/{invitationId}",
         "definition": {
             "entityName": "Invitation",
