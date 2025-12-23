@@ -1,128 +1,201 @@
+'use client';
+
+import { useState } from 'react';
+import Link from 'next/link';
 import {
   Card,
   CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
 } from '@/components/ui/card';
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { MoreHorizontal, PlusCircle } from 'lucide-react';
-import { staff } from '@/lib/data';
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+  DialogFooter,
+  DialogClose,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Plus, Search, Mail, Link as LinkIcon } from 'lucide-react';
+import { staff, type Staff } from '@/lib/data';
+import { useToast } from '@/hooks/use-toast';
 
-export default function StaffPage() {
+function AddStaffDialog() {
+  const [open, setOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [email, setEmail] = useState('');
+  const { toast } = useToast();
+
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    // Simulate link generation
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const signupLink = `https://carehub.pro/signup?invite=${btoa(email)}`;
+    toast({
+        title: "Signup Link Generated",
+        description: (
+            <div className="space-y-2">
+                <p>Share this link with the new staff member:</p>
+                <div className="flex items-center gap-2 rounded-md bg-muted p-2">
+                    <LinkIcon className="h-4 w-4" />
+                    <Input readOnly defaultValue={signupLink} className="text-xs h-8" />
+                </div>
+            </div>
+        )
+    });
+
+    setIsSubmitting(false);
+    setOpen(false);
+    setEmail('');
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold tracking-tight font-headline">
-          Staff Management
-        </h1>
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
         <Button>
-          <PlusCircle className="mr-2 h-4 w-4" />
+          <Plus className="mr-2 h-4 w-4" />
           Add Staff
         </Button>
-      </div>
-      <Card>
-        <CardHeader>
-          <CardTitle>Staff Members</CardTitle>
-          <CardDescription>
-            A list of all staff members and their roles.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="hidden w-[100px] sm:table-cell">
-                  <span className="sr-only">Image</span>
-                </TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead className="hidden md:table-cell">Status</TableHead>
-                <TableHead className="hidden md:table-cell">Schedule</TableHead>
-                <TableHead>
-                  <span className="sr-only">Actions</span>
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {staff.map(member => (
-                <TableRow key={member.id}>
-                  <TableCell className="hidden sm:table-cell">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage
-                        src={member.avatarUrl}
-                        alt={`${member.name}'s avatar`}
-                        data-ai-hint={member.avatarHint}
-                      />
-                      <AvatarFallback>
-                        {member.name.split(' ').map(n => n[0]).join('')}
-                      </AvatarFallback>
-                    </Avatar>
-                  </TableCell>
-                  <TableCell className="font-medium">{member.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary">{member.role}</Badge>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    <Badge
-                      variant={member.available ? 'default' : 'destructive'}
-                      className={
-                        member.available
-                          ? 'bg-green-500/20 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-green-500/20'
-                          : 'bg-red-500/20 text-red-700 dark:bg-red-500/10 dark:text-red-400 border-red-500/20'
-                      }
-                    >
-                      {member.available ? 'Available' : 'Unavailable'}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
-                    {member.schedule}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          aria-haspopup="true"
-                          size="icon"
-                          variant="ghost"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                        <DropdownMenuItem>View Profile</DropdownMenuItem>
-                        <DropdownMenuItem>Edit Schedule</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive">
-                          Remove Staff
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Add New Staff Member</DialogTitle>
+          <DialogDescription>
+            Enter the staff member's email to generate a unique signup link.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email Address</Label>
+            <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                id="email"
+                name="email"
+                type="email"
+                required
+                placeholder="staff.member@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="pl-9"
+                />
+            </div>
+          </div>
+          <DialogFooter className="pt-2">
+            <DialogClose asChild>
+                <Button type="button" variant="outline">Cancel</Button>
+            </DialogClose>
+            <Button type="submit" disabled={isSubmitting || !email}>
+              {isSubmitting ? 'Generating...' : 'Generate Link'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function StaffCard({ member }: { member: Staff }) {
+  return (
+    <Link href={`/dashboard/staff/${member.id}`}>
+      <Card className="hover:bg-muted/50 transition-colors h-full">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-4">
+            <Avatar className="h-12 w-12">
+              <AvatarImage src={member.avatarUrl} alt={member.name} data-ai-hint={member.avatarHint} />
+              <AvatarFallback>
+                {member.name.split(' ').map(n => n[0]).join('')}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-semibold text-foreground truncate">
+                {member.name}
+              </h3>
+              <p className="text-sm text-muted-foreground">{member.role}</p>
+              <div className="flex flex-wrap gap-2 mt-2">
+                <Badge
+                  variant={member.available ? 'secondary' : 'outline'}
+                  className={
+                    member.available
+                      ? 'bg-green-500/20 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-transparent'
+                      : ''
+                  }
+                >
+                  {member.available ? 'Available' : 'Unavailable'}
+                </Badge>
+              </div>
+            </div>
+          </div>
         </CardContent>
       </Card>
+    </Link>
+  );
+}
+
+export default function StaffPage() {
+  const [searchQuery, setSearchQuery] = useState('');
+
+  const filteredStaff = staff.filter(
+    member =>
+      member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      member.role.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight font-headline">
+            Staff Management
+          </h1>
+          <p className="text-muted-foreground">Manage all staff member profiles</p>
+        </div>
+        <AddStaffDialog />
+      </div>
+
+      <div className="mb-6">
+        <div className="relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search staff members..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+      </div>
+        
+      {filteredStaff.length > 0 ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {filteredStaff.map(member => (
+            <StaffCard key={member.id} member={member} />
+          ))}
+        </div>
+      ) : (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-12">
+            <User className="h-12 w-12 text-muted-foreground/50 mb-4" />
+            <h3 className="font-semibold text-lg mb-1">No staff found</h3>
+            <p className="text-muted-foreground text-center max-w-sm">
+              {searchQuery
+                ? 'No staff members match your search criteria.'
+                : 'Add your first staff member to get started.'}
+            </p>
+            {!searchQuery && (
+              <div className="mt-4">
+                <AddStaffDialog />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
