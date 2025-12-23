@@ -73,7 +73,9 @@ export default function PatientDetailPage({
     );
   }
 
-  const age = differenceInYears(new Date(), parseISO(patient.dateOfBirth));
+  const age = patient.dateOfBirth
+    ? differenceInYears(new Date(), parseISO(patient.dateOfBirth))
+    : null;
   const assignedStaff = staff
     .filter(s => s.role === 'Nurse' || s.role === 'Doctor')
     .slice(0, 1);
@@ -202,7 +204,7 @@ export default function PatientDetailPage({
                       </div>
                       <div>
                         <p className="text-sm text-muted-foreground">Age</p>
-                        <p className="font-medium">{age} years old</p>
+                        <p className="font-medium">{age !== null ? `${age} years old` : 'Not specified'}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
@@ -441,3 +443,5 @@ export default function PatientDetailPage({
     </div>
   );
 }
+
+    
