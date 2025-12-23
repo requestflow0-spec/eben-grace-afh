@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -7,7 +8,8 @@ import {
   createUserWithEmailAndPassword,
   updateProfile,
 } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { useAuth, useFirestore } from '@/firebase';
+import { collection, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -20,9 +22,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CareHubLogo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SignupPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [name, setName] = useState('');
@@ -31,6 +36,49 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [repeatPassword, setRepeatPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  const processStaffInvitation = async (userId: string, userEmail: string, userName: string) => {
+    if (!firestore) return;
+    const invitationsRef = collection(firestore, 'invitations');
+    const q = query(invitationsRef, where('email', '==', userEmail));
+
+    try {
+      const querySnapshot = await getDocs(q);
+      if (querySnapshot.empty) {
+        return; // Not a staff invitation
+      }
+
+      const batch = writeBatch(firestore);
+      const invitationDoc = querySnapshot.docs[0];
+      
+      // 1. Create a new staff profile
+      const staffRef = collection(firestore, 'staff');
+      const newStaffDoc = {
+        id: userId,
+        name: userName,
+        role: invitationDoc.data().role || 'Staff',
+        email: userEmail,
+        certifications: ['Basic Care'],
+        schedule: 'Mon-Fri, 9am-5pm',
+        available: true,
+        avatarUrl: `https://picsum.photos/seed/${userId}/200/200`,
+        avatarHint: 'person professional',
+      };
+      batch.set(collection(firestore, 'staff', userId), newStaffDoc);
+
+      // 2. Delete the invitation
+      batch.delete(invitationDoc.ref);
+
+      // Commit the batch
+      await batch.commit();
+
+      toast({ title: "Welcome!", description: "Your staff account has been set up." });
+    } catch (error) {
+      console.error("Error processing staff invitation: ", error);
+      // Let's not surface this error to the user for now to keep UX simple
+    }
+  };
+
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,9 +93,15 @@ export default function SignupPage() {
     setIsLoading(true);
     try {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      await updateProfile(userCredential.user, {
+      const user = userCredential.user;
+
+      await updateProfile(user, {
         displayName: name,
       });
+
+      // After user is created, check for staff invitation
+      await processStaffInvitation(user.uid, email, name);
+
 
       // Here you would typically save the phone number to Firestore
       // For now, we are just collecting it.

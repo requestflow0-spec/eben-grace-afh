@@ -22,34 +22,44 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, Mail, Link as LinkIcon, User } from 'lucide-react';
+import { Plus, Search, Mail, User } from 'lucide-react';
 import { staff, type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
+import { useFirestore } from '@/firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
+
 
 function AddStaffDialog() {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [email, setEmail] = useState('');
   const { toast } = useToast();
+  const firestore = useFirestore();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!firestore) return;
     setIsSubmitting(true);
-    // Simulate link generation
-    await new Promise(resolve => setTimeout(resolve, 1000));
 
-    const signupLink = `https://carehub.pro/signup?invite=${btoa(email)}`;
+    const invitationsRef = collection(firestore, 'invitations');
+    addDoc(invitationsRef, {
+      email: email,
+      role: 'staff',
+      createdAt: new Date().toISOString(),
+    }).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+          path: invitationsRef.path,
+          operation: 'create',
+          requestResourceData: { email, role: 'staff' },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
+
     toast({
-        title: "Signup Link Generated",
-        description: (
-            <div className="space-y-2">
-                <p>Share this link with the new staff member:</p>
-                <div className="flex items-center gap-2 rounded-md bg-muted p-2">
-                    <LinkIcon className="h-4 w-4" />
-                    <Input readOnly defaultValue={signupLink} className="text-xs h-8" />
-                </div>
-            </div>
-        )
+        title: "Staff Invited",
+        description: `${email} has been invited to join as staff. They will need to sign up with this email.`,
     });
 
     setIsSubmitting(false);
@@ -69,7 +79,7 @@ function AddStaffDialog() {
         <DialogHeader>
           <DialogTitle>Add New Staff Member</DialogTitle>
           <DialogDescription>
-            Enter the staff member's email to generate a unique signup link.
+            Enter the staff member's email. They will need to sign up using this email to access their account.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -94,7 +104,7 @@ function AddStaffDialog() {
                 <Button type="button" variant="outline">Cancel</Button>
             </DialogClose>
             <Button type="submit" disabled={isSubmitting || !email}>
-              {isSubmitting ? 'Generating...' : 'Generate Link'}
+              {isSubmitting ? 'Adding...' : 'Add Staff'}
             </Button>
           </DialogFooter>
         </form>

@@ -48,5 +48,12 @@ service cloud.firestore {
     match /roles_admin/{userId} {
       allow get, list, create, delete: if isAdmin();
     }
+
+    // Invitations can be read by anyone during signup, but only created/deleted by admins.
+    match /invitations/{invitationId} {
+      allow get, list: if isSignedIn();
+      allow create: if isAdmin();
+      allow delete: if isSignedIn();
+    }
   }
 }
