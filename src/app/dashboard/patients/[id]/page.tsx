@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, use } from 'react';
@@ -574,7 +575,7 @@ export default function PatientDetailPage({
                                 <div className="flex-1">
                                   <p className="font-medium text-sm">
                                     {format(
-                                      new Date(task.dueDate),
+                                      new Date(task.date),
                                       'EEEE, MMMM d, yyyy'
                                     )}
                                   </p>
@@ -763,5 +764,7 @@ export default function PatientDetailPage({
     </div>
   );
 }
+
+    
 
     

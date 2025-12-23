@@ -46,7 +46,7 @@ export type Task = {
   id: string;
   description: string;
   patientName: string;
-  dueDate: string;
+  date: string;
   completed: boolean;
 };
 
@@ -56,5 +56,7 @@ export const patients: Patient[] = [];
 export const staff: Staff[] = [];
 export const appointments: Appointment[] = [];
 export const tasks: Task[] = [];
+
+    
 
     
