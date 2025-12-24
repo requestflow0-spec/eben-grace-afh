@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Card,
@@ -23,14 +23,15 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Search, Mail, Users, KeyRound } from 'lucide-react';
-import { staff, type Staff } from '@/lib/data';
+import { type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useAuth } from '@/firebase';
+import { useFirestore, useAuth, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { createUserWithEmailAndPassword } from 'firebase/auth';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useRole } from '@/hooks/useRole';
+import { Skeleton } from '@/components/ui/skeleton';
 
 function AddStaffDialog() {
   const [open, setOpen] = useState(false);
@@ -229,12 +230,25 @@ function StaffCard({ member }: { member: Staff }) {
 export default function StaffPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const { role } = useRole();
+  const firestore = useFirestore();
+  const { user } = useUser();
 
-  const filteredStaff = staff.filter(
-    member =>
-      member.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      member.role.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const staffQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return collection(firestore, 'staff');
+  }, [firestore, user]);
+
+  const { data: staff, isLoading } = useCollection<Staff>(staffQuery);
+
+  const filteredStaff = useMemo(() => {
+    if (!staff) return [];
+    const q = searchQuery.toLowerCase();
+    return staff.filter(
+      member =>
+        member.name.toLowerCase().includes(q) ||
+        member.role.toLowerCase().includes(q)
+    );
+  }, [staff, searchQuery]);
 
   return (
     <div className="space-y-6">
@@ -260,7 +274,13 @@ export default function StaffPage() {
         </div>
       </div>
         
-      {filteredStaff.length > 0 ? (
+      {isLoading ? (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
+        </div>
+      ) : filteredStaff.length > 0 ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {filteredStaff.map(member => (
             <StaffCard key={member.id} member={member} />
@@ -287,3 +307,5 @@ export default function StaffPage() {
     </div>
   );
 }
+
+    
