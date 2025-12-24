@@ -16,44 +16,53 @@ export async function POST(request: NextRequest) {
     }
     
     // Check if an admin already exists.
-    // This is a simple check; more robust multi-tenant apps would handle this differently.
-    const users = await adminAuth.listUsers();
-    const adminExists = users.users.some(u => u.customClaims?.admin);
+    const adminQuery = await adminDb.collection('users').where('role', '==', 'admin').limit(1).get();
 
-    if (adminExists) {
-        // Find if the existing admin is the one trying to sign up again
-        const existingUser = await adminAuth.getUserByEmail(email).catch(() => null);
-        if (!existingUser || !existingUser.customClaims?.admin) {
-             return NextResponse.json({ error: 'An administrator account already exists.' }, { status: 409 });
+    if (!adminQuery.empty) {
+        // If an admin exists, check if it's the same user trying to sign up again.
+        const existingAdmin = adminQuery.docs[0];
+        const existingAdminData = existingAdmin.data();
+        if (existingAdminData.email !== email) {
+            return NextResponse.json({ error: 'An administrator account already exists.' }, { status: 409 });
         }
     }
 
-    // 1. Create the user with Firebase Admin SDK
-    const userRecord = await adminAuth.createUser({
-      email,
-      password,
-      displayName: name,
-      emailVerified: true, 
-    });
 
-    // 2. Set a custom claim to identify the user as an admin
-    await adminAuth.setCustomUserClaims(userRecord.uid, { admin: true });
+    // 1. Create the user with Firebase Admin SDK (or get if exists)
+    let userRecord;
+    try {
+        userRecord = await adminAuth.createUser({
+            email,
+            password,
+            displayName: name,
+            emailVerified: true,
+        });
+    } catch (error: any) {
+        if (error.code === 'auth/email-already-exists') {
+            userRecord = await adminAuth.getUserByEmail(email);
+        } else {
+            throw error; // Re-throw other errors
+        }
+    }
 
-    // 3. Create a corresponding profile in the 'users' collection for consistency
+
+    // 2. Create a corresponding profile in the 'users' collection with the 'admin' role
     const userDocRef = adminDb.collection('users').doc(userRecord.uid);
     await userDocRef.set({
       email,
       displayName: name,
-      role: 'admin', // Storing role in Firestore doc as well for easy querying/display
+      role: 'admin',
       createdAt: new Date(),
-    });
+    }, { merge: true });
 
     return NextResponse.json({ success: true, uid: userRecord.uid });
 
-  } catch (error: any) {
+  } catch (error: any)
+  {
     console.error('Admin signup error:', error);
      let errorMessage = 'Failed to create admin account.';
     if (error.code === 'auth/email-already-exists') {
+        // This case is handled above, but as a fallback.
         errorMessage = 'A user with this email address already exists.';
     } else if (error.code === 'auth/invalid-password') {
         errorMessage = error.message;

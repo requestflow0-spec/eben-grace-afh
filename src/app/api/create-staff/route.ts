@@ -6,16 +6,17 @@ import { headers } from 'next/headers';
 
 export async function POST(request: NextRequest) {
   try {
-    // 1. Verify the requesting user is an admin
+    // 1. Verify the requesting user is an admin by checking their Firestore document
     const authorization = (await (headers())).get('Authorization');
     if (!authorization?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const idToken = authorization.split('Bearer ')[1];
     const decodedToken = await adminAuth.verifyIdToken(idToken);
-
-    if (!decodedToken.admin) {
-        return NextResponse.json({ error: 'Forbidden: Only admins can create staff.' }, { status: 403 });
+    
+    const adminUserDoc = await adminDb.collection('users').doc(decodedToken.uid).get();
+    if (!adminUserDoc.exists || adminUserDoc.data()?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden: Only admins can create staff.' }, { status: 403 });
     }
 
     // 2. Get new staff details from request body
@@ -35,9 +36,15 @@ export async function POST(request: NextRequest) {
       displayName: name,
       emailVerified: true, // Or send a verification email
     });
-
-    // 4. Set a custom claim to identify the user as staff
-    await adminAuth.setCustomUserClaims(userRecord.uid, { staff: true });
+    
+    // 4. Create a user profile in the 'users' collection with the 'staff' role
+    const userDocRef = adminDb.collection('users').doc(userRecord.uid);
+    await userDocRef.set({
+      email,
+      displayName: name,
+      role: 'staff',
+      createdAt: new Date(),
+    });
 
     // 5. Create a corresponding profile in the 'staff' collection
     const staffDocRef = adminDb.collection('staff').doc(userRecord.uid);
@@ -46,7 +53,7 @@ export async function POST(request: NextRequest) {
       name,
       email,
       phone: phone || '',
-      role: 'Staff',
+      role: 'Staff', // Role within the context of the staff collection
       certifications: ['Basic Care'],
       schedule: 'Mon-Fri, 9am-5pm',
       available: true,
@@ -55,15 +62,6 @@ export async function POST(request: NextRequest) {
       createdAt: new Date(),
       updatedAt: new Date(),
       assignedPatients: [],
-    });
-    
-    // 6. Create a user profile in the 'users' collection
-    const userDocRef = adminDb.collection('users').doc(userRecord.uid);
-    await userDocRef.set({
-      email,
-      displayName: name,
-      role: 'staff',
-      createdAt: new Date(),
     });
 
     return NextResponse.json({ success: true, uid: userRecord.uid });

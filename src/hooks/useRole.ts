@@ -2,59 +2,28 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser } from '@/firebase';
-import type { IdTokenResult } from 'firebase/auth';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 type UserRole = 'admin' | 'staff' | null;
+type UserProfile = {
+  role: UserRole;
+  // other profile fields...
+};
 
 export function useRole() {
   const { user, isUserLoading: isAuthLoading } = useUser();
-  const [role, setRole] = useState<UserRole>(null);
-  const [claims, setClaims] = useState<IdTokenResult['claims'] | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const firestore = useFirestore();
 
-  useEffect(() => {
-    const checkRole = async () => {
-      setIsLoading(true);
+  const userDocRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.id);
+  }, [firestore, user]);
 
-      if (isAuthLoading) {
-        return; // Wait until auth state is determined
-      }
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userDocRef);
 
-      if (!user) {
-        setRole(null);
-        setClaims(null);
-        setIsLoading(false);
-        return;
-      }
-      
-      // Use custom claims as the single source of truth for roles.
-      try {
-        // Pass `true` to force a token refresh from the server.
-        // This is crucial for getting the latest custom claims after they've been set.
-        const idTokenResult = await user.getIdTokenResult(true);
-        const userClaims = idTokenResult.claims;
-        setClaims(userClaims);
+  const role = userProfile?.role || null;
+  const isLoading = isAuthLoading || isProfileLoading;
 
-        if (userClaims.admin) {
-          setRole('admin');
-        } else if (userClaims.staff) {
-          setRole('staff');
-        } else {
-          setRole(null);
-        }
-      } catch (error) {
-        console.error("Error fetching user claims:", error);
-        setRole(null);
-        setClaims(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    checkRole();
-  }, [user, isAuthLoading]);
-
-
-  return { role, claims, isLoading };
+  return { role, isLoading };
 }
