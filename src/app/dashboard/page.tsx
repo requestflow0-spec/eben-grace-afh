@@ -146,7 +146,7 @@ export default function DashboardPage() {
       return query(collectionGroup(firestore, 'dailyRecords'), where('adminId', '==', adminId), orderBy('date', 'desc'));
     }
     if (role === 'staff') {
-      if (assignedPatientIds && assignedPatientIds.length > 0) {
+       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collectionGroup(firestore, 'dailyRecords'), where('patientId', 'in', assignedPatientIds), orderBy('date', 'desc'));
       }
       return null;
