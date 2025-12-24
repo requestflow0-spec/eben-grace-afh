@@ -25,7 +25,7 @@ import { Label } from '@/components/ui/label';
 import { Plus, Search, Mail, Users, KeyRound, Phone } from 'lucide-react';
 import { type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { collection } from 'firebase/firestore';
 import { useRole } from '@/hooks/useRole';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -38,15 +38,29 @@ function AddStaffDialog() {
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const { toast } = useToast();
+  const { user } = useUser();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!user) {
+        toast({
+            variant: 'destructive',
+            title: "Authentication Error",
+            description: "You must be logged in to create staff.",
+        });
+        return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      const idToken = await user.getIdToken();
       const response = await fetch('/api/create-staff', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${idToken}`,
+        },
         body: JSON.stringify({ name, email, password, phone }),
       });
 
