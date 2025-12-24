@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, Mail, Users, KeyRound } from 'lucide-react';
+import { Plus, Search, Mail, Users, KeyRound, Phone } from 'lucide-react';
 import { type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
@@ -37,7 +37,7 @@ function AddStaffDialog() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [phone, setPhone] = useState('');
   const { toast } = useToast();
   const firestore = useFirestore();
 
@@ -60,7 +60,8 @@ function AddStaffDialog() {
         id: staffDocRef.id, // Use the auto-generated ID
         name: name,
         role: 'Staff',
-        email: email, // Note: This doesn't create an actual Firebase Auth user
+        email: email,
+        phone: phone,
         certifications: ['Basic Care'],
         schedule: 'Mon-Fri, 9am-5pm',
         available: true,
@@ -81,7 +82,7 @@ function AddStaffDialog() {
       setOpen(false);
       setName('');
       setEmail('');
-      setPassword('');
+      setPhone('');
 
     } catch (error: any) {
       console.error("Error creating staff profile:", error);
@@ -144,6 +145,21 @@ function AddStaffDialog() {
                 placeholder="staff.member@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="pl-9"
+                />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="phone">Phone Number</Label>
+            <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                id="phone"
+                name="phone"
+                type="tel"
+                placeholder="+1 234 567 890"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
                 className="pl-9"
                 />
             </div>

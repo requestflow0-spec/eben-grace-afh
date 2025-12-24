@@ -43,11 +43,13 @@
         "id": { "type": "string", "description": "Unique identifier for the Staff entity." },
         "firstName": { "type": "string", "description": "The first name of the staff member." },
         "lastName": { "type": "string", "description": "The last name of the staff member." },
+        "email": { "type": "string", "description": "The email of the staff member.", "format": "email" },
+        "phone": { "type": "string", "description": "The phone number of the staff member." },
         "role": { "type": "string", "description": "The role of the staff member (e.g., nurse, doctor)." },
         "schedule": { "type": "string", "description": "The schedule of the staff member." },
         "certifications": { "type": "array", "items": { "type": "string" }, "description": "List of certifications held by the staff member." }
       },
-      "required": ["id", "firstName", "lastName", "role"]
+      "required": ["id", "firstName", "lastName", "role", "email"]
     },
     "SleepLog": {
         "$schema": "http://json-schema.org/draft-07/schema#",

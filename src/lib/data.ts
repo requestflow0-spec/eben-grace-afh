@@ -26,6 +26,8 @@ export type Staff = {
   id: string;
   name: string;
   role: 'Nurse' | 'Doctor' | 'Admin' | 'Therapist' | 'Staff';
+  email: string;
+  phone: string;
   certifications: string[];
   schedule: string;
   avatarUrl: string;

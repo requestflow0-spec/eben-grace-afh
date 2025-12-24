@@ -1,3 +1,4 @@
+
 'use client';
 
 import { use, useState } from 'react';
@@ -298,13 +299,11 @@ export default function StaffDetailPage({
               <div className="mt-4 flex flex-wrap gap-4 text-sm">
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-muted-foreground" />
-                  <span>
-                    {member.name.toLowerCase().replace(' ', '.')}@carehub.pro
-                  </span>
+                  <span>{member.email}</span>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-muted-foreground" />
-                  <span>555-010-0{member.id.replace('s', '')}</span>
+                  <span>{member.phone}</span>
                 </div>
               </div>
             </div>
