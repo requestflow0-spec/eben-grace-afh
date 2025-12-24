@@ -46,15 +46,18 @@ export default function DailyRecordsPage() {
 
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    if (role === 'admin') {
+      return collection(firestore, 'patients');
+    }
     if (role === 'staff') {
-      // If a staff member has no assigned patients, we should not query for any.
-      // An 'in' query with an empty array is invalid.
+      // If a staff member has no assigned patients, we must not query.
+      // An 'in' query with an empty array is invalid and throws a permission error.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
       return null;
     }
-    return collection(firestore, 'patients');
+    return null;
   }, [firestore, role, assignedPatientIds]);
 
   const { data: patients, isLoading: isLoadingPatients } = useCollection<Patient>(patientsQuery);
@@ -188,7 +191,7 @@ export default function DailyRecordsPage() {
             <ClipboardList className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="font-semibold text-lg mb-1">No Records Found</h3>
             <p className="text-muted-foreground text-center max-w-sm">
-              There are no daily records for any patients yet.
+              {role === 'staff' ? 'No records found for your assigned patients.' : 'There are no daily records for any patients yet.'}
             </p>
           </CardContent>
         </Card>
