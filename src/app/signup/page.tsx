@@ -9,7 +9,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -27,6 +27,7 @@ import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SignupPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [name, setName] = useState('');
@@ -47,6 +48,15 @@ export default function SignupPage() {
       return;
     }
     
+    if (!firestore) {
+      toast({
+        variant: 'destructive',
+        title: 'Sign-up Failed',
+        description: 'Database service is not available. Please try again later.',
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
@@ -57,7 +67,26 @@ export default function SignupPage() {
         displayName: name,
       });
 
-      toast({ title: 'Admin account created successfully!' });
+      // Create a user profile document in Firestore
+      const userDocRef = doc(firestore, 'users', user.uid);
+      const userProfileData = {
+        email: user.email,
+        displayName: user.displayName,
+        createdAt: serverTimestamp(),
+      };
+
+      await setDoc(userDocRef, userProfileData).catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: userDocRef.path,
+            operation: 'create',
+            requestResourceData: userProfileData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        // We throw an error here to make sure the user knows the profile creation failed.
+        throw new Error("Failed to create user profile. You may not have the correct permissions.");
+      });
+
+      toast({ title: 'Account created successfully!' });
       router.push('/dashboard');
     } catch (error: any) {
       console.error('Email Sign-Up Error:', error);
