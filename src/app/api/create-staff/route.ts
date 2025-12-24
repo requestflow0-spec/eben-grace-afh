@@ -7,7 +7,7 @@ import { headers } from 'next/headers';
 export async function POST(request: NextRequest) {
   try {
     // 1. Verify the requesting user is an admin
-    const authorization = headers().get('Authorization');
+    const authorization = (await (headers())).get('Authorization');
     if (!authorization?.startsWith('Bearer ')) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }

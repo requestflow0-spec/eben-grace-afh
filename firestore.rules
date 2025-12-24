@@ -13,7 +13,7 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
-    // Read the user's role from their custom claims on the auth token.
+    // Read role from the custom claims on the auth token.
     function getRole() {
       return request.auth.token.role;
     }
@@ -32,15 +32,14 @@ service cloud.firestore {
       allow get: if isSignedIn();
       
       // Admins can create staff user profiles.
-      allow create: if isAdmin();
-      
-      // A user can create their own profile during signup.
-      allow create: if isOwner(userId);
+      // This is now handled by the secure API route, but the rule is a good safeguard.
+      allow create: if isAdmin() || isOwner(userId);
       
       // Users can update their own profile, but cannot change their role.
+      // The role is managed by custom claims, but we prevent tampering with the doc field.
       allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
       
-      // Admins can update any profile (e.g., to change roles).
+      // Admins can update any profile (e.g., to change display names).
       allow update: if isAdmin();
     }
 
