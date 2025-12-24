@@ -47,10 +47,12 @@ export default function DailyRecordsPage() {
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     if (role === 'staff') {
+      // If a staff member has no assigned patients, we should not query for any.
+      // An 'in' query with an empty array is invalid.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
-      return null; // Staff with no assigned patients can't see any
+      return null;
     }
     return collection(firestore, 'patients');
   }, [firestore, role, assignedPatientIds]);
