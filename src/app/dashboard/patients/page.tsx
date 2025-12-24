@@ -119,7 +119,8 @@ function AddPatientDialog() {
       avatarHint: 'person portrait',
     };
 
-    addDoc(collection(firestore, 'patients'), newPatientDoc)
+    const patientsRef = collection(firestore, 'patients');
+    addDoc(patientsRef, newPatientDoc)
       .then(() => {
         toast({ title: 'Patient created successfully.' });
         form.reset();
@@ -127,7 +128,7 @@ function AddPatientDialog() {
       })
       .catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
-          path: 'patients',
+          path: patientsRef.path,
           operation: 'create',
           requestResourceData: newPatientDoc,
         });

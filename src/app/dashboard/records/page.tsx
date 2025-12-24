@@ -30,10 +30,12 @@ export default function DailyRecordsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
   const { role } = useRole();
-
+  
   const staffQuery = useMemoFirebase(() => {
-    return firestore ? collection(firestore, 'staff') : null;
-  }, [firestore]);
+    if (!firestore || !user) return null;
+    return collection(firestore, 'staff');
+  }, [firestore, user]);
+
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
   const assignedPatientIds = useMemo(() => {

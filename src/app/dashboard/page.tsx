@@ -101,6 +101,7 @@ export default function DashboardPage() {
     if (!firestore || !user) return null;
     return collection(firestore, 'staff');
   }, [firestore, user]);
+
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
   const assignedPatientIds = useMemo(() => {
