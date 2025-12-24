@@ -118,6 +118,8 @@ export default function DashboardPage() {
       return collection(firestore, 'patients');
     }
     if (role === 'staff') {
+      // If a staff member has no assigned patients, we must not query.
+      // An 'in' query with an empty array is invalid.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
@@ -134,6 +136,7 @@ export default function DashboardPage() {
       return query(collectionGroup(firestore, 'dailyRecords'), orderBy('date', 'desc'));
     }
     if (role === 'staff') {
+      // If a staff member has no assigned patients, we must not query.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collectionGroup(firestore, 'dailyRecords'), where('patientId', 'in', assignedPatientIds), orderBy('date', 'desc'));
       }
@@ -250,5 +253,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
