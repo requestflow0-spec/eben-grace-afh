@@ -105,7 +105,7 @@ export const useUser = () => useContext(UserContext);
  * @param deps The dependency array for the `useMemo` hook.
  * @returns A memoized Firestore reference.
  */
-export const useMemoFirebase = <T>(factory: () => T, deps: React.DependencyList) => {
+export const useMemoFirebase = <T,>(factory: () => T, deps: React.DependencyList) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const memoized = useMemo(factory, deps);
   if (memoized) {
