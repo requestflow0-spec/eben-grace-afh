@@ -30,7 +30,9 @@ export function useRole() {
       
       // Use custom claims as the single source of truth for roles.
       try {
-        const idTokenResult = await user.getIdTokenResult();
+        // Pass `true` to force a token refresh from the server.
+        // This is crucial for getting the latest custom claims after they've been set.
+        const idTokenResult = await user.getIdTokenResult(true);
         const userClaims = idTokenResult.claims;
         setClaims(userClaims);
 
