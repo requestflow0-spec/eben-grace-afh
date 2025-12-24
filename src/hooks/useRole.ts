@@ -26,7 +26,7 @@ export function useRole() {
     // Asynchronously get the user's ID token to check for custom claims.
     user.getIdTokenResult()
       .then((idTokenResult) => {
-        // The 'admin' claim is set by our secure API route.
+        // The 'admin' claim is set by our secure API route during signup.
         if (idTokenResult.claims.admin) {
           setRole('admin');
         } else {
@@ -34,7 +34,7 @@ export function useRole() {
         }
       })
       .catch(() => {
-        // If there's an error, default to the lowest privilege.
+        // If there's an error, default to the lowest privilege for safety.
         setRole('staff');
       })
       .finally(() => {

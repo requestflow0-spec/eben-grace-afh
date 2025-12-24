@@ -99,13 +99,18 @@ export default function DashboardPage() {
 
   const staffQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return collection(firestore, 'staff');
-  }, [firestore, user]);
+    // Admins query their own staff, staff members don't query all staff.
+    if (role === 'admin') {
+      return collection(firestore, 'admins', user.uid, 'staff');
+    }
+    return null;
+  }, [firestore, user, role]);
 
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
   const assignedPatientIds = useMemo(() => {
-    if (role === 'staff' && staffData) {
+    if (role === 'staff' && user && staffData) {
+      // Find the staff member's own record within their admin's subcollection
       const staffMember = staffData.find(s => s.id === user?.uid);
       return staffMember?.assignedPatients || [];
     }
@@ -113,25 +118,32 @@ export default function DashboardPage() {
   }, [role, user, staffData]);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading || !role) return null;
+    if (!firestore || !user || isRoleLoading) return null;
+    const adminId = role === 'admin' ? user.uid : user.token.adminId; // staff has adminId claim
+    if (!adminId) return null;
+
     if (role === 'admin') {
-      return collection(firestore, 'patients');
+      return collection(firestore, 'admins', adminId, 'patients');
     }
     if (role === 'staff') {
       if (assignedPatientIds && assignedPatientIds.length > 0) {
-        return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
+        return query(collection(firestore, 'admins', adminId, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
+      // Staff with no assigned patients should not query any patients.
       return null;
     }
     return null;
-  }, [firestore, role, assignedPatientIds]);
+  }, [firestore, user, role, isRoleLoading, assignedPatientIds]);
 
   const { data: patients } = useCollection<Patient>(patientsQuery);
-  
+
   const allRecordsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading || !role) return null;
+    if (!firestore || !user || isRoleLoading) return null;
+    const adminId = role === 'admin' ? user.uid : user.token.adminId;
+    if (!adminId) return null;
+
     if (role === 'admin') {
-      return query(collectionGroup(firestore, 'dailyRecords'), orderBy('date', 'desc'));
+      return query(collectionGroup(firestore, 'dailyRecords'), where('adminId', '==', adminId), orderBy('date', 'desc'));
     }
     if (role === 'staff') {
       if (assignedPatientIds && assignedPatientIds.length > 0) {
@@ -140,7 +152,7 @@ export default function DashboardPage() {
       return null;
     }
     return null;
-  }, [firestore, role, assignedPatientIds]);
+  }, [firestore, user, role, isRoleLoading, assignedPatientIds]);
   
   const { data: allRecords } = useCollection<Task>(allRecordsQuery);
 

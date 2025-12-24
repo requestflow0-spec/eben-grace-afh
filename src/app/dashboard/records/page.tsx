@@ -32,40 +32,47 @@ export default function DailyRecordsPage() {
   const { role, isLoading: isRoleLoading } = useRole();
   
   const staffQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'staff');
-  }, [firestore, user]);
+    if (!firestore || !user || role !== 'admin') return null;
+    const adminId = user.uid;
+    return collection(firestore, 'admins', adminId, 'staff');
+  }, [firestore, user, role]);
 
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
   const assignedPatientIds = useMemo(() => {
-    if (role === 'staff' && staffData) {
-      const staffMember = staffData.find(s => s.id === user?.uid);
+    if (role === 'staff' && user && staffData) {
+      const staffMember = staffData.find(s => s.id === user.uid);
       return staffMember?.assignedPatients || [];
     }
     return null;
-  }, [role, user?.uid, staffData]);
+  }, [role, user, staffData]);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading || !role) return null;
+    if (!firestore || !user || isRoleLoading) return null;
+    const adminId = role === 'admin' ? user.uid : user.token.adminId;
+    if (!adminId) return null;
+
     if (role === 'admin') {
-      return collection(firestore, 'patients');
+      return collection(firestore, 'admins', adminId, 'patients');
     }
     if (role === 'staff') {
       if (assignedPatientIds && assignedPatientIds.length > 0) {
-        return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
+        return query(collection(firestore, 'admins', adminId, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
       return null;
     }
     return null;
-  }, [firestore, role, assignedPatientIds]);
+  }, [firestore, user, role, isRoleLoading, assignedPatientIds]);
 
   const { data: patients, isLoading: isLoadingPatients } = useCollection<Patient>(patientsQuery);
   
   const recordsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading || !role) return null;
+    if (!firestore || !user || isRoleLoading) return null;
+    const adminId = role === 'admin' ? user.uid : user.token.adminId;
+    if (!adminId) return null;
+
     if (role === 'admin') {
-        return query(collectionGroup(firestore, 'dailyRecords'), orderBy('date', 'desc'));
+        return query(collectionGroup(firestore, 'dailyRecords'), where('adminId', '==', adminId), orderBy('date', 'desc'));
     }
     if (role === 'staff') {
         if (assignedPatientIds && assignedPatientIds.length > 0) {
@@ -74,16 +81,16 @@ export default function DailyRecordsPage() {
         return null;
     }
     return null;
-  }, [firestore, role, assignedPatientIds]);
+  }, [firestore, user, role, isRoleLoading, assignedPatientIds]);
   
   const { data: allTasks, isLoading: isLoadingTasks } = useCollection<Task>(recordsQuery);
 
   const handleToggleRecordStatus = (task: Task) => {
-    if (!firestore || !task.id || !task.patientId) return;
+    if (!firestore || !task.id || !task.patientId || !user) return;
+    const adminId = role === 'admin' ? user.uid : user.token.adminId;
+    if (!adminId) return;
 
-    // To get the full path, we must construct it.
-    // collectionGroup queries don't provide the full path in the snapshot.
-    const recordRef = doc(firestore, `patients/${task.patientId}/dailyRecords/${task.id}`);
+    const recordRef = doc(firestore, `admins/${adminId}/patients/${task.patientId}/dailyRecords/${task.id}`);
     
     updateDoc(recordRef, { completed: !task.completed }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({

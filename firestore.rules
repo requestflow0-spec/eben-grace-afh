@@ -1,7 +1,9 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Helper functions
+
+    // Global helper functions
     function isSignedIn() {
       return request.auth != null;
     }
@@ -10,50 +12,65 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
-    // Admin role is now determined by a custom claim, not a document read
+    // Admin role is determined by a custom claim set securely on the server.
     function isAdmin() {
       return request.auth.token.admin == true;
     }
+    
+    // A staff member has an adminId claim pointing to their administrator.
+    function isStaffOf(adminId) {
+        return request.auth.token.adminId == adminId;
+    }
 
+    // Rules for the user collection
     match /users/{userId} {
-      // Allow user to read their own profile
-      allow read: if isOwner(userId);
-      // Allow user to create their own profile on signup
-      allow create: if isOwner(userId);
-      // Prevent user from changing their own role
+      // Any authenticated user can read any user profile (e.g., for display names).
+      allow get: if isSignedIn();
+      
+      // Users can only create their own profile.
+      // They cannot assign their own role; this is handled by the server.
+      allow create: if isOwner(userId) && request.resource.data.role != 'admin';
+      
+      // Users can update their own profile, but cannot change their role.
       allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
     }
-    
-    match /patients/{patientId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
-      
-      match /dailyRecords/{dailyRecordId} {
-        allow get, list: if isSignedIn();
-        allow create: if isSignedIn();
-        allow update, delete: if isAdmin();
-      }
-      
-      match /sleepLogs/{sleepLogId} {
-        allow read, write: if isSignedIn();
-      }
-    }
-    
-    // Only admins can create/manage staff documents
-    match /staff/{staffId} {
-      allow get, list: if isSignedIn();
-      allow create, update, delete: if isAdmin();
-    }
-    
-    // CollectionGroup support
-    match /{path=**}/dailyRecords/{dailyRecordId} {
-      allow get, list: if isSignedIn();
-      allow create: if isSignedIn();
-      allow update, delete: if isAdmin();
-    }
-    
-    match /{path=**}/sleepLogs/{sleepLogId} {
-      allow read, write: if isSignedIn();
+
+    // Rules for all data scoped under an admin
+    match /admins/{adminId} {
+        // Only the admin owner can read/write directly to their own admin document space.
+        allow read, write: if isOwner(adminId);
+
+        // Rules for patients collection, owned by an admin
+        match /patients/{patientId} {
+            // Admin can do anything.
+            // Staff belonging to this admin can read patient lists and individual patient data.
+            allow get, list: if isOwner(adminId) || isStaffOf(adminId);
+            allow create, update, delete: if isOwner(adminId);
+
+            // Rules for daily records subcollection
+            match /dailyRecords/{recordId} {
+                // Admin can do anything.
+                // Staff of this admin can read records.
+                allow get, list: if isOwner(adminId) || isStaffOf(adminId);
+                // Staff can create records for patients they are assigned to.
+                allow create: if isStaffOf(adminId);
+                // Only admin can update/delete records for now.
+                allow update, delete: if isOwner(adminId);
+            }
+            
+            // Rules for sleep logs subcollection
+            match /sleepLogs/{sleepLogId} {
+               allow read, write: if isOwner(adminId) || isStaffOf(adminId);
+            }
+        }
+        
+        // Rules for staff collection, owned by an admin
+        match /staff/{staffId} {
+            // Admin can manage their own staff.
+            // Other staff members can see who is on their team.
+            allow get, list: if isOwner(adminId) || isStaffOf(adminId);
+            allow create, update, delete: if isOwner(adminId);
+        }
     }
   }
 }

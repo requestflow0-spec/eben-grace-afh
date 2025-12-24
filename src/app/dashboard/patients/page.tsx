@@ -78,6 +78,7 @@ const formSchema = z.object({
 
 function AddPatientDialog() {
   const firestore = useFirestore();
+  const { user } = useUser();
   const { role } = useRole();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -100,7 +101,7 @@ function AddPatientDialog() {
   if (role !== 'admin') return null;
 
   const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    if (!firestore) return;
+    if (!firestore || !user) return;
 
     const newPatientDoc = {
       name: values.name,
@@ -117,9 +118,11 @@ function AddPatientDialog() {
       updatedAt: serverTimestamp(),
       avatarUrl: `https://picsum.photos/seed/${Math.random()}/200/200`,
       avatarHint: 'person portrait',
+      adminId: user.uid, // Tie patient to the admin
     };
-
-    const patientsRef = collection(firestore, 'patients');
+    
+    // Admins/{adminId}/patients/{patientId}
+    const patientsRef = collection(firestore, 'admins', user.uid, 'patients');
     addDoc(patientsRef, newPatientDoc)
       .then(() => {
         toast({ title: 'Patient created successfully.' });
@@ -326,32 +329,35 @@ export default function PatientsPage() {
   const { role, isLoading: isRoleLoading } = useRole();
 
   const staffQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'staff');
-  }, [firestore, user]);
+    if (!firestore || !user || role !== 'admin') return null;
+    return collection(firestore, 'admins', user.uid, 'staff');
+  }, [firestore, user, role]);
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
   const assignedPatientIds = useMemo(() => {
-    if (role === 'staff' && staffData) {
+    if (role === 'staff' && user && staffData) {
       const staffMember = staffData.find(s => s.id === user?.uid);
       return staffMember?.assignedPatients || [];
     }
     return null;
-  }, [role, user?.uid, staffData]);
+  }, [role, user, staffData]);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading || !role) return null;
+    if (!firestore || !user || isRoleLoading) return null;
+    const adminId = role === 'admin' ? user.uid : user.token.adminId;
+    if (!adminId) return null;
+
     if (role === 'admin') {
-      return collection(firestore, 'patients');
+      return collection(firestore, 'admins', adminId, 'patients');
     }
     if (role === 'staff') {
       if (assignedPatientIds && assignedPatientIds.length > 0) {
-        return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
+        return query(collection(firestore, 'admins', adminId, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
       return null;
     }
     return null;
-  }, [firestore, role, assignedPatientIds]);
+  }, [firestore, user, role, isRoleLoading, assignedPatientIds]);
 
   const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
 

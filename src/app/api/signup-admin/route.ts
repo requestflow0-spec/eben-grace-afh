@@ -5,35 +5,28 @@ export async function POST(request: NextRequest) {
   try {
     const {name, email, password} = await request.json();
 
-    // Server-side check against the private environment variable
-    if (email !== process.env.ADMIN_EMAIL) {
-      return NextResponse.json(
-        {error: 'This form is for admin registration only.'},
-        {status: 403}
-      );
-    }
-
-    // Check if the admin user already exists
+    // Check if a user with this email already exists
     try {
-        await adminAuth.getUserByEmail(email);
-        return NextResponse.json(
-            { error: 'An admin account with this email already exists.' },
-            { status: 409 }
-        );
+      await adminAuth.getUserByEmail(email);
+      // If the above line doesn't throw, the user exists.
+      return NextResponse.json(
+        {error: 'An account with this email already exists.'},
+        {status: 409} // 409 Conflict
+      );
     } catch (error: any) {
-        if (error.code !== 'auth/user-not-found') {
-            throw error; // Re-throw unexpected errors
-        }
-        // If user is not found, proceed with creation
+      // "auth/user-not-found" is the expected error if the user doesn't exist.
+      // Any other error should be re-thrown.
+      if (error.code !== 'auth/user-not-found') {
+        throw error;
+      }
     }
-
 
     // Create user with Firebase Admin SDK
     const userRecord = await adminAuth.createUser({
       email,
       password,
       displayName: name,
-      emailVerified: true,
+      emailVerified: true, // Assuming admin emails are trusted
     });
 
     // Set a custom claim to identify the user as an admin
@@ -50,9 +43,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({success: true, uid: userRecord.uid});
   } catch (error: any) {
     console.error('Admin signup error:', error);
-    return NextResponse.json(
-      {error: error.message || 'Failed to create admin account'},
-      {status: 500}
-    );
+    // Avoid sending detailed internal error messages to the client
+    const message =
+      error.code === 'auth/email-already-exists'
+        ? 'An account with this email already exists.'
+        : 'Failed to create admin account.';
+    const status = error.code === 'auth/email-already-exists' ? 409 : 500;
+
+    return NextResponse.json({error: message}, {status});
   }
 }

@@ -42,56 +42,53 @@ function AddStaffDialog() {
   const { toast } = useToast();
   const firestore = useFirestore();
   const mainAuth = useAuth(); // The primary auth instance for the app
+  const { user: adminUser } = useUser(); // This is the logged-in admin
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore || !mainAuth) return;
+    if (!firestore || !mainAuth || !adminUser) return;
     setIsSubmitting(true);
 
+    // This logic should be moved to a secure backend function in a real production app.
+    // For this prototype, we create a temporary auth instance to create a new user,
+    // as you cannot be logged into two accounts simultaneously on the client.
     try {
-      // This is a temporary auth instance for creating the user.
-      // It's a workaround because we can't have two users logged in at once.
-      // In a real-world scenario, this would be handled by a backend function.
-      const { initializeApp } = await import('firebase/app');
-      const { getAuth } = await import('firebase/auth');
+       const { initializeApp, deleteApp } = await import('firebase/app');
+       const { getAuth } = await import('firebase/auth');
+
+      // Create a temporary, secondary Firebase app instance for user creation
       const tempApp = initializeApp({
           apiKey: mainAuth.app.options.apiKey,
           authDomain: mainAuth.app.options.authDomain,
           projectId: mainAuth.app.options.projectId,
-      }, 'temp-staff-creation');
+      }, `temp-staff-creation-${Date.now()}`); // Unique name to avoid conflicts
       const tempAuth = getAuth(tempApp);
-
+      
       const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
-      const user = userCredential.user;
+      const newStaffUser = userCredential.user;
 
+      // Now, create the staff profile in Firestore under the currently logged-in admin's scope
+      const staffDocRef = doc(firestore, 'admins', adminUser.uid, 'staff', newStaffUser.uid);
       const newStaffDoc = {
-        id: user.uid,
+        id: newStaffUser.uid,
         name: name,
         role: 'Staff',
         email: email,
         certifications: ['Basic Care'],
         schedule: 'Mon-Fri, 9am-5pm',
         available: true,
-        avatarUrl: `https://picsum.photos/seed/${user.uid}/200/200`,
+        avatarUrl: `https://picsum.photos/seed/${newStaffUser.uid}/200/200`,
         avatarHint: 'person professional',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         assignedPatients: [],
+        adminId: adminUser.uid, // Link staff to their admin
       };
       
-      const staffDocRef = doc(firestore, 'staff', user.uid);
-      await setDoc(staffDocRef, newStaffDoc).catch(async (serverError) => {
-          const permissionError = new FirestorePermissionError({
-              path: staffDocRef.path,
-              operation: 'create',
-              requestResourceData: newStaffDoc,
-          });
-          errorEmitter.emit('permission-error', permissionError);
-          throw new Error("Permission denied to create staff profile.");
-      });
+      // Use the main firestore instance to write the document
+      await setDoc(staffDocRef, newStaffDoc);
       
-      // Clean up the temporary app
-      const { deleteApp } = await import('firebase/app');
+      // IMPORTANT: Clean up the temporary app instance
       await deleteApp(tempApp);
 
       toast({
@@ -106,6 +103,16 @@ function AddStaffDialog() {
 
     } catch (error: any) {
       console.error("Error creating staff user:", error);
+      const staffDocRef = doc(firestore, 'admins', adminUser.uid, 'staff', 'dummy-id'); // for error emitter
+      const newStaffDoc = { adminId: adminUser.uid };
+       errorEmitter.emit(
+        'permission-error',
+        new FirestorePermissionError({
+          path: staffDocRef.path.replace('dummy-id', ''),
+          operation: 'create',
+          requestResourceData: newStaffDoc,
+        })
+      );
       toast({
         variant: 'destructive',
         title: "Operation Failed",
@@ -234,9 +241,9 @@ export default function StaffPage() {
   const { user } = useUser();
 
   const staffQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return collection(firestore, 'staff');
-  }, [firestore, user]);
+    if (!firestore || !user || role !== 'admin') return null;
+    return collection(firestore, 'admins', user.uid, 'staff');
+  }, [firestore, user, role]);
 
   const { data: staff, isLoading } = useCollection<Staff>(staffQuery);
 
