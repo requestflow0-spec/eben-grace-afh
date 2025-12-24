@@ -34,7 +34,7 @@ export default function DailyRecordsPage() {
   const staffQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
     return collection(firestore, 'staff');
-  }, [firestore, user]);
+  }, [firestore]);
 
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
