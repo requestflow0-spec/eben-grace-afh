@@ -42,7 +42,7 @@ export default function SignupPage() {
         toast({
             variant: 'destructive',
             title: 'Unauthorized',
-            description: 'This email is not authorized for admin registration.',
+            description: 'This email is not authorized f admin registration.',
         });
         return;
     }
