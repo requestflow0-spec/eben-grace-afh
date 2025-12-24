@@ -4,8 +4,9 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useAuth, useFirestore } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -18,9 +19,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CareHubLogo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SignupPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [name, setName] = useState('');
@@ -31,6 +35,15 @@ export default function SignupPage() {
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (!auth || !firestore) {
+      toast({
+        variant: 'destructive',
+        title: 'Error',
+        description: 'Firebase not initialized. Please try again later.',
+      });
+      return;
+    }
 
     if (password !== repeatPassword) {
       toast({
@@ -44,24 +57,42 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      // Call the secure API route to create the admin user
-      const response = await fetch('/api/signup-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
-      });
+      // 1. Create the user in Firebase Authentication
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-      const data = await response.json();
+      // 2. Update the user's display name in their Auth profile
+      await updateProfile(user, { displayName: name });
+      
+      // 3. Create the user's profile in Firestore
+      const userDocRef = doc(firestore, 'users', user.uid);
+      const newUserDoc = {
+        email,
+        displayName: name,
+        role: 'admin', // Attempt to create as admin. Firestore rules will enforce logic.
+        createdAt: serverTimestamp(),
+      };
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create admin account');
-      }
+      // The .catch block will handle permission errors if a user already exists
+      await setDoc(userDocRef, newUserDoc)
+        .catch((serverError) => {
+            // This is a fallback if the rules deny the 'admin' role, we try again as 'staff'.
+            // This ensures subsequent users can still sign up.
+            const staffDoc = { ...newUserDoc, role: 'staff' };
+             setDoc(userDocRef, staffDoc).catch(staffError => {
+                const permissionError = new FirestorePermissionError({
+                    path: userDocRef.path,
+                    operation: 'create',
+                    requestResourceData: staffDoc,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+                throw staffError; // Throw the final error
+             });
+        });
 
-      // After successful server-side creation, sign the user in on the client
-      await signInWithEmailAndPassword(auth, email, password);
-
-      toast({ title: 'Admin account created successfully!' });
+      toast({ title: 'Account created successfully!' });
       router.push('/dashboard');
+
     } catch (error: any) {
       console.error('Email Sign-Up Error:', error);
       toast({
@@ -84,7 +115,7 @@ export default function SignupPage() {
             <CardTitle className="text-3xl font-headline">CareHub Pro</CardTitle>
           </div>
           <CardDescription>
-            Create the primary administrator account.
+            Create your account. The first user will become the administrator.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -94,7 +125,7 @@ export default function SignupPage() {
               <Input
                 id="name"
                 type="text"
-                placeholder="Admin Name"
+                placeholder="Your Name"
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -102,11 +133,11 @@ export default function SignupPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="email">Admin Email</Label>
+              <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="admin@example.com"
+                placeholder="you@example.com"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -137,7 +168,7 @@ export default function SignupPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Creating Account...' : 'Create Admin Account'}
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">
