@@ -1,49 +1,53 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-
-    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
-
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-
-    // Admin is now defined by a specific email address
     function isAdmin() {
       return request.auth.email == 'requestflow.0@gmail.com';
     }
     
-    // User profile is readable/writable only by the owner
     match /users/{userId} {
       allow read, write: if isOwner(userId);
     }
     
-    // Staff can read all patient data, admins can write
     match /patients/{patientId} {
       allow get, list: if isSignedIn();
       allow create, update, delete: if isAdmin();
-
-      // Daily records can be created by any signed-in user, but only updated/deleted by admins
+      
       match /dailyRecords/{dailyRecordId} {
         allow get, list: if isSignedIn();
         allow create: if isSignedIn();
         allow update, delete: if isAdmin();
       }
-
-      // Sleep logs can be created and managed by any signed-in user
+      
       match /sleepLogs/{sleepLogId} {
         allow read, write: if isSignedIn();
       }
     }
     
-    // Staff profiles are readable by any authenticated user, but writable only by admins
     match /staff/{staffId} {
       allow get, list: if isSignedIn();
       allow create, update, delete: if isAdmin();
+    }
+    
+    // CollectionGroup support
+    match /{path=**}/dailyRecords/{dailyRecordId} {
+      allow get, list: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
+    }
+    
+    match /{path=**}/sleepLogs/{sleepLogId} {
+      allow read, write: if isSignedIn();
+    }
+    
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
