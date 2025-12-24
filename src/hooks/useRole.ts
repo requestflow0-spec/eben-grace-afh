@@ -6,6 +6,8 @@ import { useUser } from '@/firebase';
 
 type UserRole = 'admin' | 'staff';
 
+const ADMIN_UID = 'RN2nXYcrPWTcUTECt3tOnkscAEX2';
+
 export function useRole() {
   const { user, isUserLoading } = useUser();
   const [role, setRole] = useState<UserRole | null>(null);
@@ -23,8 +25,8 @@ export function useRole() {
     }
     
     setIsLoading(true);
-    // Check if the user's email matches the admin email from environment variables
-    if (user.email === process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
+    // Check if the user's UID matches the admin UID
+    if (user.uid === ADMIN_UID) {
       setRole('admin');
     } else {
       setRole('staff');

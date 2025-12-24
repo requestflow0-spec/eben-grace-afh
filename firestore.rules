@@ -8,8 +8,9 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
     function isAdmin() {
-      // Check if the user's email matches the admin email from the environment
-      return request.auth.token.email == firestore.get(/databases/$(database)/documents/config/admin).data.admin_email;
+      // The admin is identified by a specific User ID (UID).
+      // This should be the UID of the first admin account created.
+      return request.auth.uid == 'RN2nXYcrPWTcUTECt3tOnkscAEX2';
     }
     
     match /users/{userId} {
@@ -47,11 +48,6 @@ service cloud.firestore {
       allow read, write: if isSignedIn();
     }
     
-    // A rule to allow reading the admin config by admins
-    match /config/admin {
-      allow get: if isSignedIn();
-    }
-
     match /{document=**} {
       allow read, write: if false;
     }

@@ -37,15 +37,6 @@ export default function SignupPage() {
 
   const handleEmailSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (email !== process.env.NEXT_PUBLIC_ADMIN_EMAIL) {
-        toast({
-            variant: 'destructive',
-            title: 'Unauthorized',
-            description: 'This email is not authorized f admin registration.',
-        });
-        return;
-    }
 
     if (password !== repeatPassword) {
       toast({
