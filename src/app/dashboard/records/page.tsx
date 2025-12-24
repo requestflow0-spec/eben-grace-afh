@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useMemo } from 'react';
 import Link from 'next/link';
 import {
   Card,
@@ -17,80 +17,69 @@ import {
   Calendar,
 } from 'lucide-react';
 import { format } from 'date-fns';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, collectionGroup, doc, query, updateDoc, where, orderBy } from 'firebase/firestore';
-import type { Patient, Task, Staff } from '@/lib/data';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, doc, updateDoc, query, getDocs } from 'firebase/firestore';
+import type { Patient, Task } from '@/lib/data';
 import { useRole } from '@/hooks/useRole';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
+import React from 'react';
+import { Skeleton } from '@/components/ui/skeleton';
 
 type PatientWithTasks = Patient & { tasks: Task[] };
 
 export default function DailyRecordsPage() {
   const firestore = useFirestore();
-  const { user } = useUser();
-  const { role, claims, isLoading: isRoleLoading } = useRole();
-  
-  const staffQuery = useMemoFirebase(() => {
-    if (!firestore || !user || role !== 'admin') return null;
-    const adminId = user.uid;
-    return collection(firestore, 'admins', adminId, 'staff');
-  }, [firestore, user, role]);
-
-  const { data: staffData } = useCollection<Staff>(staffQuery);
-
-  const assignedPatientIds = useMemo(() => {
-    if (role === 'staff' && user && staffData) {
-      const staffMember = staffData.find(s => s.id === user.uid);
-      return staffMember?.assignedPatients || [];
-    }
-    return null;
-  }, [role, user, staffData]);
+  const { role } = useRole();
+  const [patientsWithTasks, setPatientsWithTasks] = React.useState<PatientWithTasks[]>([]);
+  const [isLoading, setIsLoading] = React.useState(true);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isRoleLoading) return null;
-    const adminId = role === 'admin' ? user.uid : claims?.adminId;
-    if (!adminId) return null;
-
-    if (role === 'admin') {
-      return collection(firestore, 'admins', adminId, 'patients');
-    }
-    if (role === 'staff') {
-      if (assignedPatientIds && assignedPatientIds.length > 0) {
-        return query(collection(firestore, 'admins', adminId, 'patients'), where('__name__', 'in', assignedPatientIds));
-      }
-      return null;
-    }
-    return null;
-  }, [firestore, user, role, isRoleLoading, assignedPatientIds, claims]);
+    if (!firestore) return null;
+    return collection(firestore, 'patients');
+  }, [firestore]);
 
   const { data: patients, isLoading: isLoadingPatients } = useCollection<Patient>(patientsQuery);
-  
-  const recordsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isRoleLoading) return null;
-    const adminId = role === 'admin' ? user.uid : claims?.adminId;
-    if (!adminId) return null;
 
-    if (role === 'admin') {
-        return query(collectionGroup(firestore, 'dailyRecords'), where('adminId', '==', adminId), orderBy('date', 'desc'));
-    }
-    if (role === 'staff') {
-        if (assignedPatientIds && assignedPatientIds.length > 0) {
-            return query(collectionGroup(firestore, 'dailyRecords'), where('patientId', 'in', assignedPatientIds), orderBy('date', 'desc'));
-        }
-        return null;
-    }
-    return null;
-  }, [firestore, user, role, isRoleLoading, assignedPatientIds, claims]);
-  
-  const { data: allTasks, isLoading: isLoadingTasks } = useCollection<Task>(recordsQuery);
+  React.useEffect(() => {
+    if (isLoadingPatients || !patients || !firestore) return;
+
+    const fetchTasksForPatients = async () => {
+        setIsLoading(true);
+        const patientsMap = new Map<string, PatientWithTasks>();
+        patients.forEach(p => patientsMap.set(p.id, { ...p, tasks: [] }));
+
+        const tasksPromises = patients.map(p => 
+            getDocs(collection(firestore, `patients/${p.id}/dailyRecords`))
+        );
+        
+        const taskSnapshots = await Promise.all(tasksPromises);
+
+        taskSnapshots.forEach((snapshot, index) => {
+            const patientId = patients[index].id;
+            const patient = patientsMap.get(patientId);
+            if (patient) {
+                snapshot.forEach(doc => {
+                    patient.tasks.push({ ...doc.data(), id: doc.id } as Task);
+                });
+            }
+        });
+        
+        const finalData = Array.from(patientsMap.values()).filter(p => p.tasks.length > 0);
+        finalData.forEach(p => p.tasks.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+
+        setPatientsWithTasks(finalData);
+        setIsLoading(false);
+    };
+
+    fetchTasksForPatients();
+  }, [patients, isLoadingPatients, firestore]);
+
 
   const handleToggleRecordStatus = (task: Task) => {
-    if (!firestore || !task.id || !task.patientId || !user) return;
-    const adminId = role === 'admin' ? user.uid : claims?.adminId;
-    if (!adminId) return;
+    if (!firestore || !task.id || !task.patientId) return;
 
-    const recordRef = doc(firestore, `admins/${adminId}/patients/${task.patientId}/dailyRecords/${task.id}`);
+    const recordRef = doc(firestore, `patients/${task.patientId}/dailyRecords/${task.id}`);
     
     updateDoc(recordRef, { completed: !task.completed }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -101,26 +90,6 @@ export default function DailyRecordsPage() {
         errorEmitter.emit('permission-error', permissionError);
     });
   };
-
-  const patientsWithTasks: PatientWithTasks[] = useMemo(() => {
-    if (!patients || !allTasks) return [];
-
-    const patientMap = new Map<string, PatientWithTasks>();
-
-    patients.forEach(p => {
-      patientMap.set(p.id, { ...p, tasks: [] });
-    });
-
-    allTasks.forEach(task => {
-      if (task.patientId && patientMap.has(task.patientId)) {
-        patientMap.get(task.patientId)?.tasks.push(task);
-      }
-    });
-
-    return Array.from(patientMap.values()).filter(p => p.tasks.length > 0);
-
-  }, [patients, allTasks]);
-
 
   return (
     <div className="space-y-6">
@@ -135,8 +104,26 @@ export default function DailyRecordsPage() {
         </div>
       </div>
 
-      {isLoadingPatients || isLoadingTasks ? (
-         <p>Loading records...</p>
+      {isLoading ? (
+        <div className="space-y-6">
+          {[...Array(3)].map((_, i) => (
+            <Card key={i}>
+              <CardHeader>
+                <div className="flex items-center gap-4">
+                  <Skeleton className="h-12 w-12 rounded-full" />
+                  <div className="space-y-2">
+                    <Skeleton className="h-6 w-40" />
+                    <Skeleton className="h-4 w-24" />
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                <Skeleton className="h-20 w-full" />
+                <Skeleton className="h-20 w-full" />
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : patientsWithTasks.length > 0 ? (
         <div className="space-y-6">
           {patientsWithTasks.map(patient => (
@@ -210,7 +197,7 @@ export default function DailyRecordsPage() {
             <ClipboardList className="h-12 w-12 text-muted-foreground/50 mb-4" />
             <h3 className="font-semibold text-lg mb-1">No Records Found</h3>
             <p className="text-muted-foreground text-center max-w-sm">
-              {role === 'staff' ? 'No records found for your assigned patients.' : 'There are no daily records for any patients yet.'}
+              {role === 'staff' ? 'No records found for any assigned patients.' : 'There are no daily records for any patients yet.'}
             </p>
           </CardContent>
         </Card>

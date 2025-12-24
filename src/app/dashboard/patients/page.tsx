@@ -10,8 +10,6 @@ import {
   collection,
   addDoc,
   serverTimestamp,
-  query,
-  where,
 } from 'firebase/firestore';
 import { differenceInYears, parseISO } from 'date-fns';
 import {
@@ -57,7 +55,7 @@ import {
 import { useRole } from '@/hooks/useRole';
 import { useToast } from '@/hooks/use-toast';
 
-import type { Patient, Staff } from '@/lib/data';
+import type { Patient } from '@/lib/data';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -118,11 +116,9 @@ function AddPatientDialog() {
       updatedAt: serverTimestamp(),
       avatarUrl: `https://picsum.photos/seed/${Math.random()}/200/200`,
       avatarHint: 'person portrait',
-      adminId: user.uid, // Tie patient to the admin
     };
     
-    // Admins/{adminId}/patients/{patientId}
-    const patientsRef = collection(firestore, 'admins', user.uid, 'patients');
+    const patientsRef = collection(firestore, 'patients');
     addDoc(patientsRef, newPatientDoc)
       .then(() => {
         toast({ title: 'Patient created successfully.' });
@@ -323,41 +319,13 @@ function PatientCard({ patient }: { patient: Patient }) {
 
 export default function PatientsPage() {
   const [search, setSearch] = useState('');
-
   const firestore = useFirestore();
-  const { user } = useUser();
-  const { role, claims, isLoading: isRoleLoading } = useRole();
-
-  const staffQuery = useMemoFirebase(() => {
-    if (!firestore || !user || role !== 'admin') return null;
-    return collection(firestore, 'admins', user.uid, 'staff');
-  }, [firestore, user, role]);
-  const { data: staffData } = useCollection<Staff>(staffQuery);
-
-  const assignedPatientIds = useMemo(() => {
-    if (role === 'staff' && user && staffData) {
-      const staffMember = staffData.find(s => s.id === user?.uid);
-      return staffMember?.assignedPatients || [];
-    }
-    return null;
-  }, [role, user, staffData]);
+  const { role } = useRole();
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isRoleLoading) return null;
-    const adminId = role === 'admin' ? user.uid : claims?.adminId;
-    if (!adminId) return null;
-
-    if (role === 'admin') {
-      return collection(firestore, 'admins', adminId, 'patients');
-    }
-    if (role === 'staff') {
-      if (assignedPatientIds && assignedPatientIds.length > 0) {
-        return query(collection(firestore, 'admins', adminId, 'patients'), where('__name__', 'in', assignedPatientIds));
-      }
-      return null;
-    }
-    return null;
-  }, [firestore, user, role, isRoleLoading, assignedPatientIds, claims]);
+    if (!firestore) return null;
+    return collection(firestore, 'patients');
+  }, [firestore]);
 
   const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
 
@@ -408,7 +376,7 @@ export default function PatientsPage() {
             <p className="text-muted-foreground text-center max-w-sm">
               {search
                 ? 'No patients match your search criteria.'
-                : role === 'admin' ? 'Add your first patient to get started.' : 'You have not been assigned any patients.'}
+                : role === 'admin' ? 'Add your first patient to get started.' : 'No patients have been added to the system yet.'}
             </p>
           </CardContent>
         </Card>

@@ -14,10 +14,9 @@
         "medicalHistory": { "type": "string", "description": "A summary of the patient's medical history." },
         "carePlan": { "type": "string", "description": "Details of the patient's care plan." },
         "emergencyContactName": { "type": "string", "description": "Name of the emergency contact." },
-        "emergencyContactPhone": { "type": "string", "description": "Phone number of the emergency contact." },
-        "adminId": { "type": "string", "description": "The UID of the admin who owns this record." }
+        "emergencyContactPhone": { "type": "string", "description": "Phone number of the emergency contact." }
       },
-      "required": ["id", "firstName", "lastName", "dateOfBirth", "adminId"]
+      "required": ["id", "firstName", "lastName", "dateOfBirth"]
     },
     "DailyRecord": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -31,10 +30,9 @@
         "activities": { "type": "string", "description": "Description of daily activities." },
         "medicationAdministration": { "type": "string", "description": "Details of medication administered." },
         "observations": { "type": "string", "description": "Relevant observations for the patient." },
-        "status": { "type": "string", "enum": ["pending", "completed"], "description": "The status of the record." },
-        "adminId": { "type": "string", "description": "The UID of the admin who owns this record." }
+        "status": { "type": "string", "enum": ["pending", "completed"], "description": "The status of the record." }
       },
-      "required": ["id", "patientId", "date", "status", "adminId"]
+      "required": ["id", "patientId", "date", "status"]
     },
     "Staff": {
       "$schema": "http://json-schema.org/draft-07/schema#",
@@ -47,10 +45,9 @@
         "lastName": { "type": "string", "description": "The last name of the staff member." },
         "role": { "type": "string", "description": "The role of the staff member (e.g., nurse, doctor)." },
         "schedule": { "type": "string", "description": "The schedule of the staff member." },
-        "certifications": { "type": "array", "items": { "type": "string" }, "description": "List of certifications held by the staff member." },
-        "adminId": { "type": "string", "description": "The UID of the admin who owns this record." }
+        "certifications": { "type": "array", "items": { "type": "string" }, "description": "List of certifications held by the staff member." }
       },
-      "required": ["id", "firstName", "lastName", "role", "adminId"]
+      "required": ["id", "firstName", "lastName", "role"]
     },
     "SleepLog": {
         "$schema": "http://json-schema.org/draft-07/schema#",
@@ -62,10 +59,9 @@
             "patientId": { "type": "string", "description": "Reference to the Patient." },
             "log_date": { "type": "string", "description": "The date of the sleep log.", "format": "date" },
             "hours": { "type": "array", "items": { "type": "string", "enum": ["awake", "asleep"] }, "description": "An array representing the sleep status for each of the 24 hours in a day." },
-            "notes": { "type": "string", "description": "Additional notes about the patient's sleep." },
-            "adminId": { "type": "string", "description": "The UID of the admin who owns this record." }
+            "notes": { "type": "string", "description": "Additional notes about the patient's sleep." }
         },
-        "required": ["id", "patientId", "log_date", "hours", "adminId"]
+        "required": ["id", "patientId", "log_date", "hours"]
     }
   },
   "auth": {
@@ -91,35 +87,35 @@
         }
       },
       {
-        "path": "/admins/{adminId}/patients/{patientId}",
+        "path": "/patients/{patientId}",
         "definition": {
           "entityName": "Patient",
           "schema": { "$ref": "#/backend/entities/Patient" },
-          "description": "Stores patient profiles, scoped by the admin who created them."
+          "description": "Stores patient profiles."
         }
       },
       {
-        "path": "/admins/{adminId}/patients/{patientId}/dailyRecords/{dailyRecordId}",
+        "path": "/patients/{patientId}/dailyRecords/{dailyRecordId}",
         "definition": {
           "entityName": "DailyRecord",
           "schema": { "$ref": "#/backend/entities/DailyRecord" },
-          "description": "Stores daily records for a specific patient, scoped by admin."
+          "description": "Stores daily records for a specific patient."
         }
       },
       {
-          "path": "/admins/{adminId}/patients/{patientId}/sleepLogs/{sleepLogId}",
+          "path": "/patients/{patientId}/sleepLogs/{sleepLogId}",
           "definition": {
               "entityName": "SleepLog",
               "schema": { "$ref": "#/backend/entities/SleepLog" },
-              "description": "Stores sleep logs for a specific patient, scoped by admin."
+              "description": "Stores sleep logs for a specific patient."
           }
       },
       {
-        "path": "/admins/{adminId}/staff/{staffId}",
+        "path": "/staff/{staffId}",
         "definition": {
           "entityName": "Staff",
           "schema": { "$ref": "#/backend/entities/Staff" },
-          "description": "Stores staff profiles, scoped by the admin who created them."
+          "description": "Stores staff profiles."
         }
       }
     ]

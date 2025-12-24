@@ -32,15 +32,16 @@ export function useRole() {
       .then((idTokenResult) => {
         setClaims(idTokenResult.claims);
         // The 'admin' claim is set by our secure API route during signup.
-        if (idTokenResult.claims.admin) {
+        if (idTokenResult.claims.admin === true) {
           setRole('admin');
         } else {
+          // Any authenticated user without an admin claim is considered staff.
           setRole('staff');
         }
       })
       .catch(() => {
-        // If there's an error, default to the lowest privilege for safety.
-        setRole('staff');
+        // If there's an error (e.g., token expired, network issue), default to lowest privilege for safety.
+        setRole('staff'); 
         setClaims(null);
       })
       .finally(() => {

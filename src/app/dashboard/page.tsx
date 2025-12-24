@@ -13,6 +13,7 @@ import {
   AlertTriangle,
   Calendar,
   TrendingUp,
+  UsersRound,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -21,7 +22,7 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRole } from '@/hooks/useRole';
 import { useMemo } from 'react';
-import { collection, collectionGroup, query, where, orderBy, limit } from 'firebase/firestore';
+import { collection, query, orderBy } from 'firebase/firestore';
 import type { Patient, Task, Staff } from '@/lib/data';
 
 function StatCard({
@@ -94,67 +95,32 @@ function RecentRecordsList({ records }: { records: Task[] | null }) {
 
 export default function DashboardPage() {
   const { user } = useUser();
-  const { role, claims, isLoading: isRoleLoading } = useRole();
+  const { role } = useRole();
   const firestore = useFirestore();
 
+  const patientsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'patients');
+  }, [firestore]);
+  
+  const { data: patients } = useCollection<Patient>(patientsQuery);
+
   const staffQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    // Admins query their own staff, staff members don't query all staff.
-    if (role === 'admin') {
-      return collection(firestore, 'admins', user.uid, 'staff');
-    }
-    return null;
-  }, [firestore, user, role]);
+    if (!firestore) return null;
+    return collection(firestore, 'staff');
+  }, [firestore]);
 
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
-  const assignedPatientIds = useMemo(() => {
-    if (role === 'staff' && user && staffData) {
-      // Find the staff member's own record within their admin's subcollection
-      const staffMember = staffData.find(s => s.id === user?.uid);
-      return staffMember?.assignedPatients || [];
-    }
-    return null;
-  }, [role, user, staffData]);
-
-  const patientsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isRoleLoading) return null;
-    const adminId = role === 'admin' ? user.uid : claims?.adminId; // staff has adminId claim
-    if (!adminId) return null;
-
-    if (role === 'admin') {
-      return collection(firestore, 'admins', adminId, 'patients');
-    }
-    if (role === 'staff') {
-      if (assignedPatientIds && assignedPatientIds.length > 0) {
-        return query(collection(firestore, 'admins', adminId, 'patients'), where('__name__', 'in', assignedPatientIds));
-      }
-      // Staff with no assigned patients should not query any patients.
-      return null;
-    }
-    return null;
-  }, [firestore, user, role, isRoleLoading, assignedPatientIds, claims]);
-
-  const { data: patients } = useCollection<Patient>(patientsQuery);
-
   const allRecordsQuery = useMemoFirebase(() => {
-    if (!firestore || !user || isRoleLoading) return null;
-    const adminId = role === 'admin' ? user.uid : claims?.adminId;
-    if (!adminId) return null;
-
-    if (role === 'admin') {
-      return query(collectionGroup(firestore, 'dailyRecords'), where('adminId', '==', adminId), orderBy('date', 'desc'));
-    }
-    if (role === 'staff') {
-       if (assignedPatientIds && assignedPatientIds.length > 0) {
-        return query(collectionGroup(firestore, 'dailyRecords'), where('patientId', 'in', assignedPatientIds), orderBy('date', 'desc'));
-      }
-      return null;
-    }
-    return null;
-  }, [firestore, user, role, isRoleLoading, assignedPatientIds, claims]);
+      if (!firestore) return null;
+      // This is not efficient for large datasets, but works for a prototype.
+      // In a real app, you'd likely paginate or query by date range.
+      return query(collection(firestore, 'patients'), orderBy('createdAt', 'desc'));
+  }, [firestore]);
   
-  const { data: allRecords } = useCollection<Task>(allRecordsQuery);
+  // This is a placeholder as we don't have a flat 'dailyRecords' collection anymore
+  const { data: allRecords } = useCollection<Task>(null);
 
   const recentRecords = useMemo(() => {
     if (!allRecords) return [];
@@ -188,13 +154,13 @@ export default function DashboardPage() {
           title="Total Patients"
           value={patients?.length || 0}
           icon={<Users className="h-4 w-4 text-primary" />}
-          description={role === 'admin' ? "All active patients" : "Your assigned patients"}
+          description="All active patients"
         />
-        <StatCard
-          title="Today's Records"
-          value={todayRecords ?? 0}
-          icon={<Calendar className="h-4 w-4 text-primary" />}
-          description={format(new Date(), 'MMMM d, yyyy')}
+         <StatCard
+          title="Total Staff"
+          value={staffData?.length || 0}
+          icon={<UsersRound className="h-4 w-4 text-primary" />}
+          description="All staff members"
         />
         <StatCard
           title="Pending Records"

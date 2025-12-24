@@ -1,9 +1,10 @@
+
 rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // Global helper functions
+    // --- Helper Functions ---
     function isSignedIn() {
       return request.auth != null;
     }
@@ -16,61 +17,60 @@ service cloud.firestore {
     function isAdmin() {
       return request.auth.token.admin == true;
     }
-    
-    // A staff member has an adminId claim pointing to their administrator.
-    function isStaffOf(adminId) {
-        return request.auth.token.adminId == adminId;
+
+    // Staff role is determined by the absence of an admin claim.
+    function isStaff() {
+      return isSignedIn() && request.auth.token.admin != true;
     }
 
-    // Rules for the user collection
+    // --- User Profile Rules ---
     match /users/{userId} {
       // Any authenticated user can read any user profile (e.g., for display names).
       allow get: if isSignedIn();
       
-      // Users can only create their own profile.
+      // A user can only create their own profile document.
       // They cannot assign their own role; this is handled by the server.
       allow create: if isOwner(userId) && request.resource.data.role != 'admin';
       
+      // Admins can create other user profiles (for staff).
+      allow create: if isAdmin();
+      
       // Users can update their own profile, but cannot change their role.
       allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
+      
+      // Admins can update any profile (e.g., to change roles).
+      allow update: if isAdmin();
     }
 
-    // Rules for all data scoped under an admin
-    match /admins/{adminId} {
-        // Only the admin owner can read/write directly to their own admin document space.
-        allow read, write: if isOwner(adminId);
+    // --- Patient Rules ---
+    match /patients/{patientId} {
+      // Admins and staff can read patient data.
+      allow read: if isAdmin() || isStaff();
+      // Only admins can create, update, or delete patient records.
+      allow write: if isAdmin();
 
-        // Rules for patients collection, owned by an admin
-        match /patients/{patientId} {
-            // Admin can do anything.
-            // Staff belonging to this admin can read patient lists and individual patient data.
-            allow get, list: if isOwner(adminId) || isStaffOf(adminId);
-            allow create, update, delete: if isOwner(adminId);
+      // --- Subcollection Rules for Patients ---
+      match /dailyRecords/{recordId} {
+        // Admins and staff can read records.
+        allow read: if isAdmin() || isStaff();
+        // Admins and staff can create and update records.
+        allow create, update: if isAdmin() || isStaff();
+        // Only admins can delete records.
+        allow delete: if isAdmin();
+      }
 
-            // Rules for daily records subcollection
-            match /dailyRecords/{recordId} {
-                // Admin can do anything.
-                // Staff of this admin can read records.
-                allow get, list: if isOwner(adminId) || isStaffOf(adminId);
-                // Staff can create records for patients they are assigned to.
-                allow create: if isStaffOf(adminId);
-                // Only admin can update/delete records for now.
-                allow update, delete: if isOwner(adminId);
-            }
-            
-            // Rules for sleep logs subcollection
-            match /sleepLogs/{sleepLogId} {
-               allow read, write: if isOwner(adminId) || isStaffOf(adminId);
-            }
-        }
-        
-        // Rules for staff collection, owned by an admin
-        match /staff/{staffId} {
-            // Admin can manage their own staff.
-            // Other staff members can see who is on their team.
-            allow get, list: if isOwner(adminId) || isStaffOf(adminId);
-            allow create, update, delete: if isOwner(adminId);
-        }
+      match /sleepLogs/{sleepLogId} {
+        // Admins and staff can manage sleep logs.
+        allow read, write: if isAdmin() || isStaff();
+      }
+    }
+
+    // --- Staff Rules ---
+    match /staff/{staffId} {
+      // All authenticated users (admin and other staff) can see the staff list.
+      allow read: if isSignedIn();
+      // Only admins can create, update, or delete staff profiles.
+      allow write: if isAdmin();
     }
   }
 }

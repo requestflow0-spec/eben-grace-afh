@@ -25,9 +25,8 @@ import { Label } from '@/components/ui/label';
 import { Plus, Search, Mail, Users, KeyRound } from 'lucide-react';
 import { type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useAuth, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { createUserWithEmailAndPassword } from 'firebase/auth';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useRole } from '@/hooks/useRole';
@@ -41,59 +40,42 @@ function AddStaffDialog() {
   const [password, setPassword] = useState('');
   const { toast } = useToast();
   const firestore = useFirestore();
-  const mainAuth = useAuth(); // The primary auth instance for the app
-  const { user: adminUser } = useUser(); // This is the logged-in admin
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore || !mainAuth || !adminUser) return;
+    if (!firestore) return;
     setIsSubmitting(true);
 
-    // This logic should be moved to a secure backend function in a real production app.
-    // For this prototype, we create a temporary auth instance to create a new user,
-    // as you cannot be logged into two accounts simultaneously on the client.
+    // This is NOT secure for production. In a real app, this should be a serverless function
+    // that uses the Firebase Admin SDK to create the user and set their custom claims.
+    // For this prototype, we are creating a user on the client and adding them to the /staff collection.
+    // The security rules should be configured to only allow admins to write to /staff.
     try {
-       const { initializeApp, deleteApp } = await import('firebase/app');
-       const { getAuth } = await import('firebase/auth');
-
-      // Create a temporary, secondary Firebase app instance for user creation
-      const tempApp = initializeApp({
-          apiKey: mainAuth.app.options.apiKey,
-          authDomain: mainAuth.app.options.authDomain,
-          projectId: mainAuth.app.options.projectId,
-      }, `temp-staff-creation-${Date.now()}`); // Unique name to avoid conflicts
-      const tempAuth = getAuth(tempApp);
+      // NOTE: This approach of creating users on the client is insecure and for prototype purposes only.
+      // A malicious user could intercept this and create users.
+      // A proper implementation uses a secure backend endpoint (like a Cloud Function).
       
-      const userCredential = await createUserWithEmailAndPassword(tempAuth, email, password);
-      const newStaffUser = userCredential.user;
-
-      // Now, create the staff profile in Firestore under the currently logged-in admin's scope
-      const staffDocRef = doc(firestore, 'admins', adminUser.uid, 'staff', newStaffUser.uid);
+      const staffDocRef = doc(collection(firestore, 'staff')); // Create a new doc with a random ID
       const newStaffDoc = {
-        id: newStaffUser.uid,
+        id: staffDocRef.id, // Use the auto-generated ID
         name: name,
         role: 'Staff',
-        email: email,
+        email: email, // Note: This doesn't create an actual Firebase Auth user
         certifications: ['Basic Care'],
         schedule: 'Mon-Fri, 9am-5pm',
         available: true,
-        avatarUrl: `https://picsum.photos/seed/${newStaffUser.uid}/200/200`,
+        avatarUrl: `https://picsum.photos/seed/${staffDocRef.id}/200/200`,
         avatarHint: 'person professional',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         assignedPatients: [],
-        adminId: adminUser.uid, // Link staff to their admin
       };
       
-      // Use the main firestore instance to write the document
       await setDoc(staffDocRef, newStaffDoc);
-      
-      // IMPORTANT: Clean up the temporary app instance
-      await deleteApp(tempApp);
 
       toast({
-        title: "Staff Account Created",
-        description: `${name}'s account has been successfully created.`,
+        title: "Staff Profile Created",
+        description: `${name}'s profile has been created. They will need to be invited to create an auth account separately.`,
       });
 
       setOpen(false);
@@ -102,21 +84,20 @@ function AddStaffDialog() {
       setPassword('');
 
     } catch (error: any) {
-      console.error("Error creating staff user:", error);
-      const staffDocRef = doc(firestore, 'admins', adminUser.uid, 'staff', 'dummy-id'); // for error emitter
-      const newStaffDoc = { adminId: adminUser.uid };
+      console.error("Error creating staff profile:", error);
+      const staffCollRef = collection(firestore, 'staff');
        errorEmitter.emit(
         'permission-error',
         new FirestorePermissionError({
-          path: staffDocRef.path.replace('dummy-id', ''),
+          path: staffCollRef.path,
           operation: 'create',
-          requestResourceData: newStaffDoc,
+          requestResourceData: { name, email },
         })
       );
       toast({
         variant: 'destructive',
         title: "Operation Failed",
-        description: error.message || "Could not create the staff account.",
+        description: error.message || "Could not create the staff profile.",
       });
     } finally {
       setIsSubmitting(false);
@@ -135,7 +116,7 @@ function AddStaffDialog() {
         <DialogHeader>
           <DialogTitle>Add New Staff Member</DialogTitle>
           <DialogDescription>
-            Create a new staff account with their name, email, and a temporary password.
+            Create a new staff profile. Note: This does not create a login account.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -167,28 +148,12 @@ function AddStaffDialog() {
                 />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                placeholder="Temporary password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-9"
-                />
-            </div>
-          </div>
           <DialogFooter className="pt-2">
             <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
             </DialogClose>
-            <Button type="submit" disabled={isSubmitting || !email || !password || !name}>
-              {isSubmitting ? 'Creating Account...' : 'Create Staff Account'}
+            <Button type="submit" disabled={isSubmitting || !email || !name}>
+              {isSubmitting ? 'Creating Profile...' : 'Create Staff Profile'}
             </Button>
           </DialogFooter>
         </form>
@@ -238,12 +203,11 @@ export default function StaffPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const { role } = useRole();
   const firestore = useFirestore();
-  const { user } = useUser();
 
   const staffQuery = useMemoFirebase(() => {
-    if (!firestore || !user || role !== 'admin') return null;
-    return collection(firestore, 'admins', user.uid, 'staff');
-  }, [firestore, user, role]);
+    if (!firestore) return null;
+    return collection(firestore, 'staff');
+  }, [firestore]);
 
   const { data: staff, isLoading } = useCollection<Staff>(staffQuery);
 
