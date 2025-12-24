@@ -94,7 +94,7 @@ function RecentRecordsList({ records }: { records: Task[] | null }) {
 
 export default function DashboardPage() {
   const { user } = useUser();
-  const { role } = useRole();
+  const { role, isLoading: isRoleLoading } = useRole();
   const firestore = useFirestore();
 
   const staffQuery = useMemoFirebase(() => {
@@ -113,7 +113,7 @@ export default function DashboardPage() {
   }, [role, user, staffData]);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isRoleLoading) return null;
     if (role === 'admin') {
       return collection(firestore, 'patients');
     }
@@ -124,12 +124,12 @@ export default function DashboardPage() {
       return null;
     }
     return null;
-  }, [firestore, role, assignedPatientIds]);
+  }, [firestore, role, isRoleLoading, assignedPatientIds]);
 
   const { data: patients } = useCollection<Patient>(patientsQuery);
   
   const allRecordsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isRoleLoading) return null;
     if (role === 'admin') {
       return query(collectionGroup(firestore, 'dailyRecords'), orderBy('date', 'desc'));
     }
@@ -140,7 +140,7 @@ export default function DashboardPage() {
       return null;
     }
     return null;
-  }, [firestore, role, assignedPatientIds]);
+  }, [firestore, role, isRoleLoading, assignedPatientIds]);
   
   const { data: allRecords } = useCollection<Task>(allRecordsQuery);
 
@@ -250,3 +250,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

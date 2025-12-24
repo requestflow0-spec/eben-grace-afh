@@ -323,7 +323,7 @@ export default function PatientsPage() {
 
   const firestore = useFirestore();
   const { user } = useUser();
-  const { role } = useRole();
+  const { role, isLoading: isRoleLoading } = useRole();
 
   const staffQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -340,7 +340,7 @@ export default function PatientsPage() {
   }, [role, user?.uid, staffData]);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
+    if (!firestore || isRoleLoading) return null;
     if (role === 'admin') {
       return collection(firestore, 'patients');
     }
@@ -353,7 +353,7 @@ export default function PatientsPage() {
       return null;
     }
     return null;
-  }, [firestore, role, assignedPatientIds]);
+  }, [firestore, role, isRoleLoading, assignedPatientIds]);
 
   const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
 
@@ -412,3 +412,5 @@ export default function PatientsPage() {
     </div>
   );
 }
+
+    
