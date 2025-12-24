@@ -4,9 +4,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { useAuth, useFirestore } from '@/firebase';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -19,12 +18,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CareHubLogo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SignupPage() {
   const auth = useAuth();
-  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [name, setName] = useState('');
@@ -33,10 +29,10 @@ export default function SignupPage() {
   const [repeatPassword, setRepeatPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleEmailSignUp = async (e: React.FormEvent) => {
+  const handleAdminSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!auth || !firestore) {
+    if (!auth) {
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -57,44 +53,27 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      // 1. Create the user in Firebase Authentication
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
+      // 1. Call the secure API route to create the admin user
+      const response = await fetch('/api/signup-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
 
-      // 2. Update the user's display name in their Auth profile
-      await updateProfile(user, { displayName: name });
-      
-      // 3. Create the user's profile in Firestore
-      const userDocRef = doc(firestore, 'users', user.uid);
-      const newUserDoc = {
-        email,
-        displayName: name,
-        role: 'admin', // Attempt to create as admin. Firestore rules will enforce logic.
-        createdAt: serverTimestamp(),
-      };
+      const data = await response.json();
 
-      // The .catch block will handle permission errors if a user already exists
-      await setDoc(userDocRef, newUserDoc)
-        .catch((serverError) => {
-            // This is a fallback if the rules deny the 'admin' role, we try again as 'staff'.
-            // This ensures subsequent users can still sign up.
-            const staffDoc = { ...newUserDoc, role: 'staff' };
-             setDoc(userDocRef, staffDoc).catch(staffError => {
-                const permissionError = new FirestorePermissionError({
-                    path: userDocRef.path,
-                    operation: 'create',
-                    requestResourceData: staffDoc,
-                });
-                errorEmitter.emit('permission-error', permissionError);
-                throw staffError; // Throw the final error
-             });
-        });
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create admin account');
+      }
 
-      toast({ title: 'Account created successfully!' });
+      // 2. If server-side creation is successful, sign the new user in
+      await signInWithEmailAndPassword(auth, email, password);
+
+      toast({ title: 'Admin account created successfully!' });
       router.push('/dashboard');
 
     } catch (error: any) {
-      console.error('Email Sign-Up Error:', error);
+      console.error('Admin Sign-Up Error:', error);
       toast({
         variant: 'destructive',
         title: 'Sign-up Failed',
@@ -115,11 +94,11 @@ export default function SignupPage() {
             <CardTitle className="text-3xl font-headline">CareHub Pro</CardTitle>
           </div>
           <CardDescription>
-            Create your account. The first user will become the administrator.
+            Create the primary administrator account for this application.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleEmailSignUp} className="space-y-4">
+          <form onSubmit={handleAdminSignUp} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
               <Input
@@ -168,7 +147,7 @@ export default function SignupPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Creating Account...' : 'Create Account'}
+              {isLoading ? 'Creating Account...' : 'Create Admin Account'}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">

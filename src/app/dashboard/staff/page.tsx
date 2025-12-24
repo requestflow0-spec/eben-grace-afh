@@ -26,9 +26,7 @@ import { Plus, Search, Mail, Users, KeyRound, Phone } from 'lucide-react';
 import { type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, setDoc, serverTimestamp, collection } from 'firebase/firestore';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
+import { collection } from 'firebase/firestore';
 import { useRole } from '@/hooks/useRole';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -38,67 +36,43 @@ function AddStaffDialog() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [password, setPassword] = useState('');
   const { toast } = useToast();
-  const firestore = useFirestore();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore) return;
     setIsSubmitting(true);
 
-    // This is NOT secure for production. In a real app, this should be a serverless function
-    // that uses the Firebase Admin SDK to create the user and set their custom claims.
-    // For this prototype, we are creating a user on the client and adding them to the /staff collection.
-    // The security rules should be configured to only allow admins to write to /staff.
     try {
-      // NOTE: This approach of creating users on the client is insecure and for prototype purposes only.
-      // A malicious user could intercept this and create users.
-      // A proper implementation uses a secure backend endpoint (like a Cloud Function).
-      
-      const staffDocRef = doc(collection(firestore, 'staff')); // Create a new doc with a random ID
-      const newStaffDoc = {
-        id: staffDocRef.id, // Use the auto-generated ID
-        name: name,
-        role: 'Staff',
-        email: email,
-        phone: phone,
-        certifications: ['Basic Care'],
-        schedule: 'Mon-Fri, 9am-5pm',
-        available: true,
-        avatarUrl: `https://picsum.photos/seed/${staffDocRef.id}/200/200`,
-        avatarHint: 'person professional',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        assignedPatients: [],
-      };
-      
-      await setDoc(staffDocRef, newStaffDoc);
+      const response = await fetch('/api/create-staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password, phone }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create staff account');
+      }
 
       toast({
-        title: "Staff Profile Created",
-        description: `${name}'s profile has been created. They will need to be invited to create an auth account separately.`,
+        title: "Staff Account Created",
+        description: `${name}'s account and profile have been created.`,
       });
 
       setOpen(false);
       setName('');
       setEmail('');
       setPhone('');
+      setPassword('');
 
     } catch (error: any) {
-      console.error("Error creating staff profile:", error);
-      const staffCollRef = collection(firestore, 'staff');
-       errorEmitter.emit(
-        'permission-error',
-        new FirestorePermissionError({
-          path: staffCollRef.path,
-          operation: 'create',
-          requestResourceData: { name, email },
-        })
-      );
+      console.error("Error creating staff:", error);
       toast({
         variant: 'destructive',
         title: "Operation Failed",
-        description: error.message || "Could not create the staff profile.",
+        description: error.message || "Could not create the staff account.",
       });
     } finally {
       setIsSubmitting(false);
@@ -117,7 +91,7 @@ function AddStaffDialog() {
         <DialogHeader>
           <DialogTitle>Add New Staff Member</DialogTitle>
           <DialogDescription>
-            Create a new staff profile. Note: This does not create a login account.
+            Create a profile and login account for a new staff member.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -164,12 +138,29 @@ function AddStaffDialog() {
                 />
             </div>
           </div>
+           <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                id="password"
+                name="password"
+                type="password"
+                required
+                minLength={6}
+                placeholder="Initial password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-9"
+                />
+            </div>
+          </div>
           <DialogFooter className="pt-2">
             <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
             </DialogClose>
-            <Button type="submit" disabled={isSubmitting || !email || !name}>
-              {isSubmitting ? 'Creating Profile...' : 'Create Staff Profile'}
+            <Button type="submit" disabled={isSubmitting || !email || !name || !password}>
+              {isSubmitting ? 'Creating...' : 'Create Staff Member'}
             </Button>
           </DialogFooter>
         </form>
