@@ -7,13 +7,11 @@ import {
   Mail,
   Phone,
   Calendar as CalendarIcon,
-  Briefcase,
   Edit,
   Plus,
   User,
   X,
 } from 'lucide-react';
-import { staff, patients, type Patient } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -43,6 +41,10 @@ import {
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Skeleton } from '@/components/ui/skeleton';
+import { useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
+import { doc, collection } from 'firebase/firestore';
+import type { Staff, Patient } from '@/lib/data';
 
 const timeOptions = Array.from({ length: 24 * 2 }, (_, i) => {
   const hour = Math.floor(i / 2);
@@ -125,23 +127,107 @@ function ScheduleEditor() {
   );
 }
 
+function StaffDetailSkeleton() {
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4 mb-2">
+        <Skeleton className="h-9 w-9" />
+        <Skeleton className="h-8 w-48" />
+      </div>
+
+      <Card>
+        <CardContent className="p-6">
+          <div className="flex flex-col sm:flex-row items-start gap-6">
+            <Skeleton className="h-24 w-24 rounded-full" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-8 w-1/3" />
+              <Skeleton className="h-5 w-1/4" />
+              <div className="mt-4 flex flex-wrap gap-4">
+                <Skeleton className="h-5 w-40" />
+                <Skeleton className="h-5 w-32" />
+              </div>
+            </div>
+            <Skeleton className="h-6 w-20" />
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="grid md:grid-cols-2 gap-6">
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-1/2" />
+            <Skeleton className="h-4 w-3/4" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-6 w-1/3" />
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-1/2" />
+            <Skeleton className="h-4 w-3/4" />
+          </CardHeader>
+          <CardContent>
+            <Skeleton className="h-6 w-2/3" />
+          </CardContent>
+        </Card>
+      </div>
+
+       <Card>
+          <CardHeader>
+             <Skeleton className="h-6 w-1/3" />
+          </CardHeader>
+          <CardContent className="space-y-4">
+             <Skeleton className="h-16 w-full" />
+             <Skeleton className="h-16 w-full" />
+          </CardContent>
+        </Card>
+    </div>
+  );
+}
+
+
 export default function StaffDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = use(params);
-  const member = staff.find(s => s.id === id);
+  const firestore = useFirestore();
 
-  // Mock state for assigned patients. In a real app, this would come from a database.
-  const [assignedPatients, setAssignedPatients] = useState<Patient[]>(
-    patients.slice(0, 1)
-  );
+  const staffDocRef = useMemoFirebase(() => {
+    if (!firestore || !id) return null;
+    return doc(firestore, 'staff', id);
+  }, [firestore, id]);
+
+  const { data: member, isLoading: isStaffLoading } = useDoc<Staff>(staffDocRef);
+
+  const patientsQuery = useMemoFirebase(() => {
+      if (!firestore) return null;
+      return collection(firestore, 'patients');
+  }, [firestore]);
+
+  const { data: allPatients, isLoading: arePatientsLoading } = useCollection<Patient>(patientsQuery);
+  
+  // Mock state for assigned patients. In a real app, this would be a subcollection or array in the staff doc.
+  const [assignedPatients, setAssignedPatients] = useState<Patient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
 
+  // This effect simulates fetching assigned patients when staff member data is loaded.
+  // In a real app, you might fetch a subcollection or use an array of patient IDs from the staff document.
+  useState(() => {
+    if (member && allPatients) {
+      // This is a placeholder logic.
+      // e.g., if member.assignedPatients is an array of IDs:
+      // setAssignedPatients(allPatients.filter(p => member.assignedPatients.includes(p.id)));
+       setAssignedPatients(allPatients.slice(0,1)); // Mock: assign first patient
+    }
+  }, [member, allPatients]);
+
   const handleAssignPatient = () => {
-    const patientToAdd = patients.find(p => p.id === selectedPatientId);
+    if (!allPatients) return;
+    const patientToAdd = allPatients.find(p => p.id === selectedPatientId);
     if (patientToAdd && !assignedPatients.some(p => p.id === patientToAdd.id)) {
       setAssignedPatients([...assignedPatients, patientToAdd]);
     }
@@ -152,6 +238,10 @@ export default function StaffDetailPage({
   const handleRemovePatient = (patientId: string) => {
     setAssignedPatients(assignedPatients.filter(p => p.id !== patientId));
   };
+  
+  if (isStaffLoading || arePatientsLoading) {
+    return <StaffDetailSkeleton />;
+  }
 
   if (!member) {
     return (
@@ -167,9 +257,9 @@ export default function StaffDetailPage({
     );
   }
 
-  const unassignedPatients = patients.filter(
+  const unassignedPatients = allPatients?.filter(
     p => !assignedPatients.some(ap => ap.id === p.id)
-  );
+  ) || [];
 
   return (
     <div className="space-y-6">
@@ -368,7 +458,7 @@ export default function StaffDetailPage({
                     <div>
                       <p className="font-medium">{patient.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        Room 10{patient.id}
+                        ID: ...{patient.id.slice(-4)}
                       </p>
                     </div>
                   </div>
