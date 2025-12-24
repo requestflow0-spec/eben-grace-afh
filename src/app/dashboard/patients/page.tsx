@@ -7,31 +7,13 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
-  Card,
-  CardContent,
-} from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Badge } from '@/components/ui/badge';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from '@/components/ui/form';
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+} from 'firebase/firestore';
+import { differenceInYears, parseISO } from 'date-fns';
 import {
   Plus,
   Search,
@@ -39,36 +21,68 @@ import {
   Phone,
   Calendar,
 } from 'lucide-react';
-import { differenceInYears, parseISO } from 'date-fns';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
+
+import {
+  Card,
+  CardContent,
+} from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormControl,
+  FormMessage,
+} from '@/components/ui/form';
+import { Textarea } from '@/components/ui/textarea';
+
+import {
+  useFirestore,
+  useCollection,
+  useMemoFirebase,
+  useUser,
+} from '@/firebase';
+import { useRole } from '@/hooks/useRole';
+import { useToast } from '@/hooks/use-toast';
+
+import type { Patient, Staff } from '@/lib/data';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import type { Patient, Staff } from '@/lib/data';
-import { useToast } from '@/hooks/use-toast';
-import { Skeleton } from '@/components/ui/skeleton';
-import { useRole } from '@/hooks/useRole';
+
+
+/* -------------------------------------------------------------------------- */
+/*                                ADD PATIENT                                 */
+/* -------------------------------------------------------------------------- */
 
 const formSchema = z.object({
-    name: z.string().min(1, 'Full name is required.'),
-    dateOfBirth: z.string().optional(),
-    disabilityType: z.string().optional(),
-    careNeeds: z.string().optional(),
-    emergencyContactName: z.string().optional(),
-    emergencyContactPhone: z.string().optional(),
-    notes: z.string().optional(),
+  name: z.string().min(1, 'Full name is required.'),
+  dateOfBirth: z.string().optional(),
+  disabilityType: z.string().optional(),
+  careNeeds: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactPhone: z.string().optional(),
+  notes: z.string().optional(),
 });
 
-type FormValues = z.infer<typeof formSchema>;
-
-
 function AddPatientDialog() {
-  const [open, setOpen] = useState(false);
   const firestore = useFirestore();
-  const { toast } = useToast();
   const { role } = useRole();
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
 
-  const form = useForm<FormValues>({
+  const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: '',
@@ -80,51 +94,46 @@ function AddPatientDialog() {
       notes: '',
     },
   });
-
+  
   const { isSubmitting } = form.formState;
 
-  const handleSubmit = async (values: FormValues) => {
+  if (role !== 'admin') return null;
+
+  const onSubmit = async (values: z.infer<typeof formSchema>) => {
     if (!firestore) return;
 
-    const patientsRef = collection(firestore, 'patients');
     const newPatientDoc = {
-        name: values.name,
-        dateOfBirth: values.dateOfBirth,
-        disabilityType: values.disabilityType,
-        careNeeds: values.careNeeds,
-        emergencyContact: {
-            name: values.emergencyContactName || '',
-            phone: values.emergencyContactPhone || '',
-            relation: '', // Defaulting this, can be added to form if needed
-        },
-        notes: values.notes,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        avatarUrl: `https://picsum.photos/seed/${Math.random()}/200/200`,
-        avatarHint: 'person portrait',
+      name: values.name,
+      dateOfBirth: values.dateOfBirth,
+      disabilityType: values.disabilityType,
+      careNeeds: values.careNeeds,
+      emergencyContact: {
+        name: values.emergencyContactName || '',
+        phone: values.emergencyContactPhone || '',
+        relation: "",
+      },
+      notes: values.notes,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+      avatarUrl: `https://picsum.photos/seed/${Math.random()}/200/200`,
+      avatarHint: 'person portrait',
     };
 
-    addDoc(patientsRef, newPatientDoc).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-          path: patientsRef.path,
+    addDoc(collection(firestore, 'patients'), newPatientDoc)
+      .then(() => {
+        toast({ title: 'Patient created successfully.' });
+        form.reset();
+        setOpen(false);
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: 'patients',
           operation: 'create',
           requestResourceData: newPatientDoc,
+        });
+        errorEmitter.emit('permission-error', permissionError);
       });
-      errorEmitter.emit('permission-error', permissionError);
-    });
-
-    toast({
-        title: "Patient Created",
-        description: `${values.name} has been added to the system.`,
-    });
-    
-    form.reset();
-    setOpen(false);
   };
-
-  if (role !== 'admin') {
-    return null;
-  }
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -134,15 +143,14 @@ function AddPatientDialog() {
           Add Patient
         </Button>
       </DialogTrigger>
+
       <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Add New Patient</DialogTitle>
-          <DialogDescription>
-            Enter the patient's information to create their profile.
-          </DialogDescription>
         </DialogHeader>
+
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="name"
@@ -157,32 +165,32 @@ function AddPatientDialog() {
               )}
             />
             <div className="grid gap-4 sm:grid-cols-2">
-                <FormField
+              <FormField
                 control={form.control}
                 name="dateOfBirth"
                 render={({ field }) => (
-                    <FormItem>
+                  <FormItem>
                     <FormLabel>Date of Birth</FormLabel>
                     <FormControl>
-                        <Input type="date" {...field} />
+                      <Input type="date" {...field} />
                     </FormControl>
                     <FormMessage />
-                    </FormItem>
+                  </FormItem>
                 )}
-                />
-                <FormField
+              />
+              <FormField
                 control={form.control}
                 name="disabilityType"
                 render={({ field }) => (
-                    <FormItem>
+                  <FormItem>
                     <FormLabel>Disability Type</FormLabel>
                     <FormControl>
-                        <Input placeholder="e.g., Physical, Cognitive" {...field} />
+                      <Input placeholder="e.g., Physical, Cognitive" {...field} />
                     </FormControl>
                     <FormMessage />
-                    </FormItem>
+                  </FormItem>
                 )}
-                />
+              />
             </div>
             <FormField
               control={form.control}
@@ -198,32 +206,32 @@ function AddPatientDialog() {
               )}
             />
             <div className="grid gap-4 sm:grid-cols-2">
-                <FormField
+              <FormField
                 control={form.control}
                 name="emergencyContactName"
                 render={({ field }) => (
-                    <FormItem>
+                  <FormItem>
                     <FormLabel>Emergency Contact Name</FormLabel>
                     <FormControl>
-                        <Input placeholder="Contact name" {...field} />
+                      <Input placeholder="Contact name" {...field} />
                     </FormControl>
                     <FormMessage />
-                    </FormItem>
+                  </FormItem>
                 )}
-                />
-                <FormField
+              />
+              <FormField
                 control={form.control}
                 name="emergencyContactPhone"
                 render={({ field }) => (
-                    <FormItem>
+                  <FormItem>
                     <FormLabel>Emergency Contact Phone</FormLabel>
                     <FormControl>
-                        <Input type="tel" placeholder="+1 234 567 8900" {...field} />
+                      <Input type="tel" placeholder="+1 234 567 8900" {...field} />
                     </FormControl>
                     <FormMessage />
-                    </FormItem>
+                  </FormItem>
                 )}
-                />
+              />
             </div>
             <FormField
               control={form.control}
@@ -239,11 +247,7 @@ function AddPatientDialog() {
               )}
             />
             <div className="flex justify-end gap-3 pt-4">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setOpen(false)}
-              >
+              <Button type="button" variant="outline" onClick={() => setOpen(false)}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
@@ -257,6 +261,11 @@ function AddPatientDialog() {
   );
 }
 
+
+/* -------------------------------------------------------------------------- */
+/*                                PATIENT CARD                                */
+/* -------------------------------------------------------------------------- */
+
 function PatientCard({ patient }: { patient: Patient }) {
   const age = patient.dateOfBirth
     ? differenceInYears(new Date(), parseISO(patient.dateOfBirth))
@@ -265,36 +274,37 @@ function PatientCard({ patient }: { patient: Patient }) {
   return (
     <Link href={`/dashboard/patients/${patient.id}`}>
       <Card className="hover:bg-muted/50 transition-colors h-full">
-        <CardContent className="p-4">
-          <div className="flex items-start gap-4">
-            <Avatar className="h-12 w-12">
-              <AvatarImage src={patient.avatarUrl} alt={patient.name} data-ai-hint={patient.avatarHint} />
-              <AvatarFallback>
-                {patient.name.split(' ').map(n => n[0]).join('')}
-              </AvatarFallback>
-            </Avatar>
-            <div className="flex-1 min-w-0">
-              <h3 className="font-semibold text-foreground truncate">
-                {patient.name}
-              </h3>
-              <div className="flex flex-wrap gap-2 mt-1">
-                {age !== null && (
-                  <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Calendar className="h-3 w-3" />
-                    {age} years old
-                  </span>
-                )}
-                {patient.disabilityType && (
-                  <Badge variant="secondary">{patient.disabilityType}</Badge>
-                )}
-              </div>
-              {patient.emergencyContact?.name && (
-                <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
-                  <Phone className="h-3 w-3" />
-                  Emergency: {patient.emergencyContact.name}
-                </p>
+        <CardContent className="p-4 flex gap-4">
+          <Avatar className="h-12 w-12">
+            <AvatarImage src={patient.avatarUrl} data-ai-hint={patient.avatarHint} />
+            <AvatarFallback>
+              {patient.name.split(' ').map(n => n[0]).join('')}
+            </AvatarFallback>
+          </Avatar>
+
+          <div className="flex-1 min-w-0">
+            <h3 className="font-semibold truncate">{patient.name}</h3>
+
+            <div className="flex flex-wrap items-center gap-2 mt-1">
+              {age !== null && (
+                <span className="text-xs text-muted-foreground flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {age} years old
+                </span>
+              )}
+              {patient.disabilityType && (
+                <Badge variant="secondary">
+                  {patient.disabilityType}
+                </Badge>
               )}
             </div>
+
+            {patient.emergencyContact?.name && (
+              <p className="text-xs text-muted-foreground mt-2 flex items-center gap-1">
+                <Phone className="h-3 w-3" />
+                Emergency: {patient.emergencyContact.name}
+              </p>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -303,15 +313,21 @@ function PatientCard({ patient }: { patient: Patient }) {
 }
 
 
+/* -------------------------------------------------------------------------- */
+/*                                MAIN PAGE                                   */
+/* -------------------------------------------------------------------------- */
+
 export default function PatientsPage() {
-  const [searchQuery, setSearchQuery] = useState('');
+  const [search, setSearch] = useState('');
+
   const firestore = useFirestore();
   const { user } = useUser();
   const { role } = useRole();
-  
+
   const staffQuery = useMemoFirebase(() => {
-    return firestore ? collection(firestore, 'staff') : null;
-  }, [firestore]);
+    if (!firestore || !user) return null;
+    return collection(firestore, 'staff');
+  }, [firestore, user]);
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
   const assignedPatientIds = useMemo(() => {
@@ -320,7 +336,7 @@ export default function PatientsPage() {
       return staffMember?.assignedPatients || [];
     }
     return null;
-  }, [role, user, staffData]);
+  }, [role, user?.uid, staffData]);
 
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
@@ -329,7 +345,7 @@ export default function PatientsPage() {
     }
     if (role === 'staff') {
       if (assignedPatientIds && assignedPatientIds.length > 0) {
-        return query(collection(firestore, 'patients'), where('id', 'in', assignedPatientIds));
+        return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
       return null;
     }
@@ -338,64 +354,59 @@ export default function PatientsPage() {
 
   const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
 
-  const filteredPatients = patients?.filter(
-    patient =>
-      patient.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      patient.disabilityType?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = useMemo(() => {
+    if (!patients) return [];
+    const q = search.toLowerCase();
+    return patients.filter(p =>
+      p.name.toLowerCase().includes(q) ||
+      (p.disabilityType && p.disabilityType.toLowerCase().includes(q))
+    );
+  }, [patients, search]);
 
+  /* ------------------------------ UI ------------------------------ */
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight font-headline">
-            Patients
-          </h1>
-          <p className="text-muted-foreground">Manage all patient profiles</p>
-        </div>
+        <h1 className="text-3xl font-bold tracking-tight font-headline">Patients</h1>
         <AddPatientDialog />
       </div>
 
-      <div className="mb-6">
-        <div className="relative max-w-md">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Search patients..."
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
+      <div className="relative max-w-md">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search patients..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="pl-9"
+        />
       </div>
-      
+
       {isLoading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-28" />)}
+          {[...Array(4)].map((_, i) => (
+            <Skeleton key={i} className="h-28" />
+          ))}
         </div>
-      ) : filteredPatients && filteredPatients.length > 0 ? (
+      ) : filtered.length ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {filteredPatients.map(patient => (
-            <PatientCard key={patient.id} patient={patient} />
+          {filtered.map(p => (
+            <PatientCard key={p.id} patient={p} />
           ))}
         </div>
       ) : (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
-            <User className="h-12 w-12 text-muted-foreground/50 mb-4" />
+          <CardContent className="py-12 text-center">
+            <User className="mx-auto mb-4 h-10 w-10 opacity-40" />
             <h3 className="font-semibold text-lg mb-1">No patients found</h3>
             <p className="text-muted-foreground text-center max-w-sm">
-              {searchQuery
+              {search
                 ? 'No patients match your search criteria.'
                 : role === 'admin' ? 'Add your first patient to get started.' : 'You have not been assigned any patients.'}
             </p>
-            {!searchQuery && role === 'admin' && (
-              <div className="mt-4">
-                <AddPatientDialog />
-              </div>
-            )}
           </CardContent>
         </Card>
       )}
     </div>
   );
 }
+

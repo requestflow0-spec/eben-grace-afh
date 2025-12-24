@@ -107,8 +107,9 @@ export default function DashboardPage() {
   const firestore = useFirestore();
 
   const staffQuery = useMemoFirebase(() => {
-    return firestore ? collection(firestore, 'staff') : null;
-  }, [firestore]);
+    if (!firestore || !user) return null;
+    return collection(firestore, 'staff');
+  }, [firestore, user]);
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
   const assignedPatientIds = useMemo(() => {
@@ -129,7 +130,7 @@ export default function DashboardPage() {
       // For staff, only run the query if they have been assigned patients.
       // An 'in' query with an empty array is invalid.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
-        return query(collection(firestore, 'patients'), where('id', 'in', assignedPatientIds));
+        return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
       // If staff has no assigned patients, don't run a query.
       return null;
@@ -151,6 +152,7 @@ export default function DashboardPage() {
     if (role === 'admin') return allRecords;
     if (role === 'staff' && assignedPatientIds) {
       // If the staff has no assigned patients, this will correctly return an empty array.
+      if (assignedPatientIds.length === 0) return [];
       return allRecords.filter(record => 
         assignedPatientIds.some(patientId => record.path?.startsWith(`patients/${patientId}`))
       );
