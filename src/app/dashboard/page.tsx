@@ -65,12 +65,12 @@ function RecentRecordsList({ records, patients }: { records: Task[] | null, pati
   }
 
   const getPatientForRecord = (record: Task) => {
-    return patients?.find(p => p.name === record.patientName);
+    return patients?.find(p => p.id === record.patientId);
   }
 
   return (
     <div className="space-y-3">
-      {records.slice(0, 5).map((record: any) => {
+      {records.slice(0, 4).map((record: any) => {
         const patient = getPatientForRecord(record);
         if (!patient) return null;
         return (
@@ -137,27 +137,29 @@ export default function DashboardPage() {
   
   const recordsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collectionGroup(firestore, 'dailyRecords');
-  }, [firestore]);
+    if (role === 'admin') {
+      return collectionGroup(firestore, 'dailyRecords');
+    }
+    if (role === 'staff') {
+      if (assignedPatientIds && assignedPatientIds.length > 0) {
+        return query(collectionGroup(firestore, 'dailyRecords'), where('patientId', 'in', assignedPatientIds));
+      }
+      return null;
+    }
+    return null;
+  }, [firestore, role, assignedPatientIds]);
   
   const { data: allRecords } = useCollection<Task>(recordsQuery);
 
-  const recordsForUser = useMemo(() => {
+  const sortedRecords = useMemo(() => {
     if (!allRecords) return [];
-    if (role === 'admin') return allRecords;
-    if (role === 'staff' && assignedPatientIds) {
-      if (assignedPatientIds.length === 0) return [];
-      return allRecords.filter(record => 
-        assignedPatientIds.some(patientId => record.path?.startsWith(`patients/${patientId}`))
-      );
-    }
-    return [];
-  }, [allRecords, role, assignedPatientIds]);
+    return [...allRecords].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [allRecords]);
 
 
-  const pendingTasks = recordsForUser.filter(t => !t.completed).length;
+  const pendingTasks = sortedRecords.filter(t => !t.completed).length;
   const today = new Date();
-  const todayRecords = recordsForUser.filter(
+  const todayRecords = sortedRecords.filter(
     t => new Date(t.date).toDateString() === today.toDateString()
   ).length;
 
@@ -249,10 +251,12 @@ export default function DashboardPage() {
             </Button>
           </CardHeader>
           <CardContent>
-            <RecentRecordsList records={recordsForUser} patients={patients} />
+            <RecentRecordsList records={sortedRecords} patients={patients} />
           </CardContent>
         </Card>
       </div>
     </div>
   );
 }
+
+    

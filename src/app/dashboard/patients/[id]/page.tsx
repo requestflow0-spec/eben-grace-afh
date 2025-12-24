@@ -278,6 +278,7 @@ export default function PatientDetailPage({
     const newRecord = {
         description: newRecordDescription,
         patientName: patient?.name || 'Unknown Patient',
+        patientId: id,
         date: new Date().toISOString(),
         completed: false,
     };
@@ -576,7 +577,7 @@ export default function PatientDetailPage({
                                   <p className="font-medium text-sm">
                                     {format(
                                       new Date(task.date),
-                                      'EEEE, MMMM d, yyyy'
+                                      'EEEE, MMMM d, yyyy, p'
                                     )}
                                   </p>
                                   <p className="text-sm text-muted-foreground mt-1">
@@ -764,6 +765,8 @@ export default function PatientDetailPage({
     </div>
   );
 }
+
+    
 
     
 

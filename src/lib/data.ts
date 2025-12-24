@@ -47,6 +47,7 @@ export type Task = {
   id: string;
   description: string;
   patientName: string;
+  patientId: string;
   date: string;
   completed: boolean;
   path?: string; // Path of the document in Firestore
@@ -58,3 +59,5 @@ export const patients: Patient[] = [];
 export const staff: Staff[] = [];
 export const appointments: Appointment[] = [];
 export const tasks: Task[] = [];
+
+    

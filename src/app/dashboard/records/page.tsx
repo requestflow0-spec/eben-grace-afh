@@ -62,8 +62,17 @@ export default function DailyRecordsPage() {
   
   const recordsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collectionGroup(firestore, 'dailyRecords');
-  }, [firestore]);
+    if (role === 'admin') {
+        return collectionGroup(firestore, 'dailyRecords');
+    }
+    if (role === 'staff') {
+        if (assignedPatientIds && assignedPatientIds.length > 0) {
+            return query(collectionGroup(firestore, 'dailyRecords'), where('patientId', 'in', assignedPatientIds));
+        }
+        return null;
+    }
+    return null;
+  }, [firestore, role, assignedPatientIds]);
   
   const { data: allTasks, isLoading: isLoadingTasks } = useCollection<Task>(recordsQuery);
 
@@ -90,9 +99,8 @@ export default function DailyRecordsPage() {
     });
 
     allTasks.forEach(task => {
-      const patientId = task.path?.split('/')[1];
-      if (patientId && patientMap.has(patientId)) {
-        patientMap.get(patientId)?.tasks.push(task);
+      if (task.patientId && patientMap.has(task.patientId)) {
+        patientMap.get(task.patientId)?.tasks.push(task);
       }
     });
 
@@ -157,7 +165,7 @@ export default function DailyRecordsPage() {
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <div className="flex-1">
                           <p className="font-medium text-sm">
-                            {format(new Date(task.date), 'EEEE, MMMM d, yyyy')}
+                            {format(new Date(task.date), 'EEEE, MMMM d, yyyy, p')}
                           </p>
                           <p className="text-sm text-muted-foreground mt-1">
                             {task.description}
@@ -197,3 +205,5 @@ export default function DailyRecordsPage() {
     </div>
   );
 }
+
+    
