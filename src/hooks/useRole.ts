@@ -2,38 +2,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
 
 type UserRole = 'admin' | 'staff';
-
-const ADMIN_UID = 'RN2nXYcrPWTcUTECt3tOnkscAEX2';
+type UserProfile = { role: UserRole };
 
 export function useRole() {
-  const { user, isUserLoading } = useUser();
-  const [role, setRole] = useState<UserRole | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user, isUserLoading: isAuthLoading } = useUser();
+  const firestore = useFirestore();
 
-  useEffect(() => {
-    if (isUserLoading) {
-        setIsLoading(true);
-        return;
-    }
-    if (!user) {
-      setRole(null);
-      setIsLoading(false);
-      return;
-    }
-    
-    setIsLoading(true);
-    // Check if the user's UID matches the admin UID
-    if (user.uid === ADMIN_UID) {
-      setRole('admin');
-    } else {
-      setRole('staff');
-    }
-    setIsLoading(false);
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return doc(firestore, 'users', user.uid);
+  }, [firestore, user]);
 
-  }, [user, isUserLoading]);
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
+  
+  const role = userProfile?.role || null;
+  const isLoading = isAuthLoading || isProfileLoading;
 
   return { role, isLoading };
 }

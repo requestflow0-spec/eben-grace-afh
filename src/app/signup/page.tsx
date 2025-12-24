@@ -60,6 +60,15 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
+      // Determine role based on email
+      const isAdmin = email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
+      const role = isAdmin ? 'admin' : 'staff';
+      
+      // For this public signup page, we only allow the admin to be created.
+      if (!isAdmin) {
+          throw new Error('This form is for admin registration only. Staff accounts must be created by an administrator.');
+      }
+
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       const user = userCredential.user;
 
@@ -73,6 +82,7 @@ export default function SignupPage() {
         email: user.email,
         displayName: user.displayName,
         createdAt: serverTimestamp(),
+        role: role, // Add the role to the user's profile
       };
 
       await setDoc(userDocRef, userProfileData).catch((serverError) => {
@@ -86,7 +96,7 @@ export default function SignupPage() {
         throw new Error("Failed to create user profile. You may not have the correct permissions.");
       });
 
-      toast({ title: 'Account created successfully!' });
+      toast({ title: 'Admin account created successfully!' });
       router.push('/dashboard');
     } catch (error: any) {
       console.error('Email Sign-Up Error:', error);

@@ -1,20 +1,31 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // Helper functions
     function isSignedIn() {
       return request.auth != null;
     }
+
     function isOwner(userId) {
       return request.auth.uid == userId;
     }
-    function isAdmin() {
-      // The admin is identified by a specific User ID (UID).
-      // This should be the UID of the first admin account created.
-      return request.auth.uid == 'RN2nXYcrPWTcUTECt3tOnkscAEX2';
+
+    // Get the user's role from their profile document
+    function getUserRole(userId) {
+      return get(/databases/$(database)/documents/users/$(userId)).data.role;
     }
-    
+
+    function isAdmin() {
+      return getUserRole(request.auth.uid) == 'admin';
+    }
+
     match /users/{userId} {
-      allow read, write: if isOwner(userId);
+      // Allow user to read their own profile
+      allow read: if isOwner(userId);
+      // Allow user to create their own profile on signup
+      allow create: if isOwner(userId);
+      // Prevent user from changing their own role
+      allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
     }
     
     match /patients/{patientId} {
@@ -32,6 +43,7 @@ service cloud.firestore {
       }
     }
     
+    // Only admins can create/manage staff documents
     match /staff/{staffId} {
       allow get, list: if isSignedIn();
       allow create, update, delete: if isAdmin();
@@ -46,10 +58,6 @@ service cloud.firestore {
     
     match /{path=**}/sleepLogs/{sleepLogId} {
       allow read, write: if isSignedIn();
-    }
-    
-    match /{document=**} {
-      allow read, write: if false;
     }
   }
 }
