@@ -47,7 +47,7 @@ export default function DailyRecordsPage() {
   }, [role, user?.uid, staffData]);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading) return null;
+    if (!firestore || isRoleLoading || !role) return null;
     if (role === 'admin') {
       return collection(firestore, 'patients');
     }
@@ -58,12 +58,12 @@ export default function DailyRecordsPage() {
       return null;
     }
     return null;
-  }, [firestore, role, isRoleLoading, assignedPatientIds]);
+  }, [firestore, role, assignedPatientIds]);
 
   const { data: patients, isLoading: isLoadingPatients } = useCollection<Patient>(patientsQuery);
   
   const recordsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading) return null;
+    if (!firestore || isRoleLoading || !role) return null;
     if (role === 'admin') {
         return query(collectionGroup(firestore, 'dailyRecords'), orderBy('date', 'desc'));
     }
@@ -74,7 +74,7 @@ export default function DailyRecordsPage() {
         return null;
     }
     return null;
-  }, [firestore, role, isRoleLoading, assignedPatientIds]);
+  }, [firestore, role, assignedPatientIds]);
   
   const { data: allTasks, isLoading: isLoadingTasks } = useCollection<Task>(recordsQuery);
 

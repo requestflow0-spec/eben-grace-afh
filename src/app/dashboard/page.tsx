@@ -113,37 +113,34 @@ export default function DashboardPage() {
   }, [role, user, staffData]);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading) return null;
+    if (!firestore || isRoleLoading || !role) return null;
     if (role === 'admin') {
       return collection(firestore, 'patients');
     }
     if (role === 'staff') {
-      // If a staff member has no assigned patients, we must not query.
-      // An 'in' query with an empty array is invalid.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
       return null;
     }
     return null;
-  }, [firestore, role, isRoleLoading, assignedPatientIds]);
+  }, [firestore, role, assignedPatientIds]);
 
   const { data: patients } = useCollection<Patient>(patientsQuery);
   
   const allRecordsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading) return null;
+    if (!firestore || isRoleLoading || !role) return null;
     if (role === 'admin') {
       return query(collectionGroup(firestore, 'dailyRecords'), orderBy('date', 'desc'));
     }
     if (role === 'staff') {
-      // If a staff member has no assigned patients, we must not query.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collectionGroup(firestore, 'dailyRecords'), where('patientId', 'in', assignedPatientIds), orderBy('date', 'desc'));
       }
       return null;
     }
     return null;
-  }, [firestore, role, isRoleLoading, assignedPatientIds]);
+  }, [firestore, role, assignedPatientIds]);
   
   const { data: allRecords } = useCollection<Task>(allRecordsQuery);
 

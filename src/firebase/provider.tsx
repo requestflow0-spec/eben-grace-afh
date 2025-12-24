@@ -97,19 +97,19 @@ export const useAuth = () => useContext(FirebaseContext).auth as Auth;
 export const useFirestore = () => useContext(FirebaseContext).firestore;
 export const useUser = () => useContext(UserContext);
 
-/**
- * A hook to create a stable, memoized reference to a Firestore query or document.
- * This is CRITICAL to prevent infinite loops when using `useCollection` or `useDoc`.
- *
- * @param factory A function that returns a Firestore query or document reference.
- * @param deps The dependency array for the `useMemo` hook.
- * @returns A memoized Firestore reference.
- */
-export const useMemoFirebase = <T>(factory: () => T, deps: React.DependencyList) => {
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const memoized = useMemo(factory, deps);
-  if (memoized) {
-    (memoized as any).__memo = true;
-  }
-  return memoized;
-};
+// /**
+//  * A hook to create a stable, memoized reference to a Firestore query or document.
+//  * This is CRITICAL to prevent infinite loops when using `useCollection` or `useDoc`.
+//  *
+//  * @param factory A function that returns a Firestore query or document reference.
+//  * @param deps The dependency array for the `useMemo` hook.
+//  * @returns A memoized Firestore reference.
+//  */
+// export const useMemoFirebase = <T>(factory: () => T, deps: React.DependencyList) => {
+//   // eslint-disable-next-line react-hooks/exhaustive-deps
+//   const memoized = useMemo(factory, deps);
+//   if (memoized) {
+//     (memoized as any).__memo = true;
+//   }
+//   return memoized;
+// };

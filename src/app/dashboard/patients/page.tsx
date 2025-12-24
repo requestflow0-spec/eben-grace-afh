@@ -340,20 +340,18 @@ export default function PatientsPage() {
   }, [role, user?.uid, staffData]);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore || isRoleLoading) return null;
+    if (!firestore || isRoleLoading || !role) return null;
     if (role === 'admin') {
       return collection(firestore, 'patients');
     }
     if (role === 'staff') {
-      // If a staff member has no assigned patients, we must not query.
-      // An 'in' query with an empty array is invalid and throws a permission error.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
       return null;
     }
     return null;
-  }, [firestore, role, isRoleLoading, assignedPatientIds]);
+  }, [firestore, role, assignedPatientIds]);
 
   const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
 
