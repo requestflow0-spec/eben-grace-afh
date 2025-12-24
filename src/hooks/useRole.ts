@@ -2,25 +2,46 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useUser, useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
+import { useUser } from '@/firebase';
 
-type UserRole = 'admin' | 'staff';
-type UserProfile = { role: UserRole };
+type UserRole = 'admin' | 'staff' | null;
 
 export function useRole() {
   const { user, isUserLoading: isAuthLoading } = useUser();
-  const firestore = useFirestore();
+  const [role, setRole] = useState<UserRole>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const userProfileRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, 'users', user.uid);
-  }, [firestore, user]);
+  useEffect(() => {
+    if (isAuthLoading) {
+      setIsLoading(true);
+      return;
+    }
 
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc<UserProfile>(userProfileRef);
-  
-  const role = userProfile?.role || null;
-  const isLoading = isAuthLoading || isProfileLoading;
+    if (!user) {
+      setRole(null);
+      setIsLoading(false);
+      return;
+    }
+
+    // Asynchronously get the user's ID token to check for custom claims.
+    user.getIdTokenResult()
+      .then((idTokenResult) => {
+        // The 'admin' claim is set by our secure API route.
+        if (idTokenResult.claims.admin) {
+          setRole('admin');
+        } else {
+          setRole('staff');
+        }
+      })
+      .catch(() => {
+        // If there's an error, default to the lowest privilege.
+        setRole('staff');
+      })
+      .finally(() => {
+        setIsLoading(false);
+      });
+
+  }, [user, isAuthLoading]);
 
   return { role, isLoading };
 }

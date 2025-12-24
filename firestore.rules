@@ -10,13 +10,9 @@ service cloud.firestore {
       return request.auth.uid == userId;
     }
 
-    // Get the user's role from their profile document
-    function getUserRole(userId) {
-      return get(/databases/$(database)/documents/users/$(userId)).data.role;
-    }
-
+    // Admin role is now determined by a custom claim, not a document read
     function isAdmin() {
-      return getUserRole(request.auth.uid) == 'admin';
+      return request.auth.token.admin == true;
     }
 
     match /users/{userId} {

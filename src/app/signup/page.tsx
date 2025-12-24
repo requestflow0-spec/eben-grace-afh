@@ -4,12 +4,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import {
-  createUserWithEmailAndPassword,
-  updateProfile,
-} from 'firebase/auth';
-import { useAuth, useFirestore } from '@/firebase';
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { signInWithEmailAndPassword } from 'firebase/auth';
+import { useAuth } from '@/firebase';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -22,12 +18,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CareHubLogo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 export default function SignupPage() {
   const auth = useAuth();
-  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [name, setName] = useState('');
@@ -47,54 +40,25 @@ export default function SignupPage() {
       });
       return;
     }
-    
-    if (!firestore) {
-      toast({
-        variant: 'destructive',
-        title: 'Sign-up Failed',
-        description: 'Database service is not available. Please try again later.',
-      });
-      return;
-    }
 
     setIsLoading(true);
 
     try {
-      // Determine role based on email
-      const isAdmin = email === process.env.NEXT_PUBLIC_ADMIN_EMAIL;
-      const role = isAdmin ? 'admin' : 'staff';
-      
-      // For this public signup page, we only allow the admin to be created.
-      if (!isAdmin) {
-          throw new Error('This form is for admin registration only. Staff accounts must be created by an administrator.');
+      // Call the secure API route to create the admin user
+      const response = await fetch('/api/signup-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create admin account');
       }
 
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      await updateProfile(user, {
-        displayName: name,
-      });
-
-      // Create a user profile document in Firestore
-      const userDocRef = doc(firestore, 'users', user.uid);
-      const userProfileData = {
-        email: user.email,
-        displayName: user.displayName,
-        createdAt: serverTimestamp(),
-        role: role, // Add the role to the user's profile
-      };
-
-      await setDoc(userDocRef, userProfileData).catch((serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: userDocRef.path,
-            operation: 'create',
-            requestResourceData: userProfileData,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-        // We throw an error here to make sure the user knows the profile creation failed.
-        throw new Error("Failed to create user profile. You may not have the correct permissions.");
-      });
+      // After successful server-side creation, sign the user in on the client
+      await signInWithEmailAndPassword(auth, email, password);
 
       toast({ title: 'Admin account created successfully!' });
       router.push('/dashboard');
@@ -109,6 +73,7 @@ export default function SignupPage() {
       setIsLoading(false);
     }
   };
+
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
@@ -157,6 +122,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 disabled={isLoading}
+                minLength={6}
               />
             </div>
             <div className="space-y-2">
