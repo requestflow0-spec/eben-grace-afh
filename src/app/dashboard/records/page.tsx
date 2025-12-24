@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, collectionGroup, doc, query, updateDoc, where } from 'firebase/firestore';
+import { collection, collectionGroup, doc, query, updateDoc, where, orderBy } from 'firebase/firestore';
 import type { Patient, Task, Staff } from '@/lib/data';
 import { useRole } from '@/hooks/useRole';
 import { FirestorePermissionError } from '@/firebase/errors';
@@ -63,11 +63,11 @@ export default function DailyRecordsPage() {
   const recordsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     if (role === 'admin') {
-        return collectionGroup(firestore, 'dailyRecords');
+        return query(collectionGroup(firestore, 'dailyRecords'), orderBy('date', 'desc'));
     }
     if (role === 'staff') {
         if (assignedPatientIds && assignedPatientIds.length > 0) {
-            return query(collectionGroup(firestore, 'dailyRecords'), where('patientId', 'in', assignedPatientIds));
+            return query(collectionGroup(firestore, 'dailyRecords'), where('patientId', 'in', assignedPatientIds), orderBy('date', 'desc'));
         }
         return null;
     }
@@ -77,8 +77,12 @@ export default function DailyRecordsPage() {
   const { data: allTasks, isLoading: isLoadingTasks } = useCollection<Task>(recordsQuery);
 
   const handleToggleRecordStatus = (task: Task) => {
-    if (!firestore || !task.path) return;
-    const recordRef = doc(firestore, task.path);
+    if (!firestore || !task.id || !task.patientId) return;
+
+    // To get the full path, we must construct it.
+    // collectionGroup queries don't provide the full path in the snapshot.
+    const recordRef = doc(firestore, `patients/${task.patientId}/dailyRecords/${task.id}`);
+    
     updateDoc(recordRef, { completed: !task.completed }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: recordRef.path,
@@ -205,5 +209,3 @@ export default function DailyRecordsPage() {
     </div>
   );
 }
-
-    
