@@ -1,8 +1,8 @@
+
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
-import { patients, tasks, type Task, type Patient } from '@/lib/data';
 import {
   Card,
   CardContent,
@@ -12,32 +12,91 @@ import {
 } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Button } from '@/components/ui/button';
 import {
   ClipboardList,
   Calendar,
 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, collectionGroup, doc, query, updateDoc, where } from 'firebase/firestore';
+import type { Patient, Task, Staff } from '@/lib/data';
+import { useRole } from '@/hooks/useRole';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 type PatientWithTasks = Patient & { tasks: Task[] };
 
 export default function DailyRecordsPage() {
-  const [allTasks, setAllTasks] = useState<Task[]>(tasks);
+  const firestore = useFirestore();
+  const { user } = useUser();
+  const { role } = useRole();
 
-  const handleToggleRecordStatus = (taskId: string) => {
-    setAllTasks(currentTasks =>
-      currentTasks.map(task =>
-        task.id === taskId ? { ...task, completed: !task.completed } : task
-      )
-    );
+  const staffQuery = useMemoFirebase(() => {
+    return firestore ? collection(firestore, 'staff') : null;
+  }, [firestore]);
+  const { data: staffData } = useCollection<Staff>(staffQuery);
+
+  const assignedPatientIds = useMemo(() => {
+    if (role === 'staff' && staffData) {
+      const staffMember = staffData.find(s => s.id === user?.uid);
+      return staffMember?.assignedPatients || [];
+    }
+    return null;
+  }, [role, user?.uid, staffData]);
+
+  const patientsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    if (role === 'staff') {
+      if (assignedPatientIds && assignedPatientIds.length > 0) {
+        return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
+      }
+      return null; // Staff with no assigned patients can't see any
+    }
+    return collection(firestore, 'patients');
+  }, [firestore, role, assignedPatientIds]);
+
+  const { data: patients, isLoading: isLoadingPatients } = useCollection<Patient>(patientsQuery);
+  
+  const recordsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collectionGroup(firestore, 'dailyRecords');
+  }, [firestore]);
+  
+  const { data: allTasks, isLoading: isLoadingTasks } = useCollection<Task>(recordsQuery);
+
+  const handleToggleRecordStatus = (task: Task) => {
+    if (!firestore || !task.path) return;
+    const recordRef = doc(firestore, task.path);
+    updateDoc(recordRef, { completed: !task.completed }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: recordRef.path,
+            operation: 'update',
+            requestResourceData: { completed: !task.completed },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
   };
 
-  const patientsWithTasks: PatientWithTasks[] = patients
-    .map(patient => ({
-      ...patient,
-      tasks: allTasks.filter(task => task.patientName === patient.name),
-    }))
-    .filter(patient => patient.tasks.length > 0);
+  const patientsWithTasks: PatientWithTasks[] = useMemo(() => {
+    if (!patients || !allTasks) return [];
+
+    const patientMap = new Map<string, PatientWithTasks>();
+
+    patients.forEach(p => {
+      patientMap.set(p.id, { ...p, tasks: [] });
+    });
+
+    allTasks.forEach(task => {
+      const patientId = task.path?.split('/')[1];
+      if (patientId && patientMap.has(patientId)) {
+        patientMap.get(patientId)?.tasks.push(task);
+      }
+    });
+
+    return Array.from(patientMap.values()).filter(p => p.tasks.length > 0);
+
+  }, [patients, allTasks]);
+
 
   return (
     <div className="space-y-6">
@@ -52,7 +111,9 @@ export default function DailyRecordsPage() {
         </div>
       </div>
 
-      {patientsWithTasks.length > 0 ? (
+      {isLoadingPatients || isLoadingTasks ? (
+         <p>Loading records...</p>
+      ) : patientsWithTasks.length > 0 ? (
         <div className="space-y-6">
           {patientsWithTasks.map(patient => (
             <Card key={patient.id}>
@@ -87,14 +148,13 @@ export default function DailyRecordsPage() {
                       href={`/dashboard/patients/${patient.id}`}
                     >
                     <div
-                      key={task.id}
                       className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex items-center gap-3 flex-1">
                         <Calendar className="h-4 w-4 text-muted-foreground" />
                         <div className="flex-1">
                           <p className="font-medium text-sm">
-                            {format(new Date(task.dueDate), 'EEEE, MMMM d, yyyy')}
+                            {format(new Date(task.date), 'EEEE, MMMM d, yyyy')}
                           </p>
                           <p className="text-sm text-muted-foreground mt-1">
                             {task.description}
@@ -106,7 +166,7 @@ export default function DailyRecordsPage() {
                         onClick={(e) => {
                           e.preventDefault();
                           e.stopPropagation();
-                          handleToggleRecordStatus(task.id);
+                          handleToggleRecordStatus(task);
                         }}
                         className="cursor-pointer"
                       >

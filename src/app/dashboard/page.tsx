@@ -1,3 +1,4 @@
+
 'use client';
 
 import {
@@ -7,28 +8,21 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import {
   Users,
   ClipboardList,
   AlertTriangle,
   Calendar,
   TrendingUp,
 } from 'lucide-react';
-import { appointments, staff, tasks, patients } from '@/lib/data';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
-import { useUser } from '@/firebase';
+import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRole } from '@/hooks/useRole';
 import { useMemo } from 'react';
+import { collection, collectionGroup, query, where } from 'firebase/firestore';
+import type { Patient, Task, Staff } from '@/lib/data';
 
 function StatCard({
   title,
@@ -59,24 +53,7 @@ function StatCard({
   );
 }
 
-function RecentRecordsList() {
-  const { user } = useUser();
-  const { role } = useRole();
-  const patientData = useMemo(() => {
-    if (role === 'staff') {
-      const assignedPatient = staff.find(s => s.id === user?.uid)?.assignedPatients?.[0];
-      return patients.filter(p => p.id === assignedPatient);
-    }
-    return patients;
-  }, [role, user]);
-
-  const patientNames = useMemo(() => patientData.map(p => p.name), [patientData]);
-
-  const records = tasks
-    .filter(t => patientNames.includes(t.patientName))
-    .sort((a, b) => new Date(b.dueDate).getTime() - new Date(a.dueDate).getTime())
-    .slice(0, 5);
-
+function RecentRecordsList({ records, patients }: { records: Task[] | null, patients: Patient[] | null }) {
   if (!records || records.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -87,30 +64,39 @@ function RecentRecordsList() {
     );
   }
 
+  const getPatientForRecord = (record: Task) => {
+    // This is not efficient for large datasets, consider denormalizing patient name on record
+    return patients?.find(p => record.path?.startsWith(`patients/${p.id}`));
+  }
+
   return (
     <div className="space-y-3">
-      {records.map((record: any) => (
-        <Link
-          key={record.id}
-          href={`/dashboard/patients/${patients.find(p => p.name === record.patientName)?.id}`}
-          className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
-        >
-          <div className="flex items-center gap-3">
-            <div className={`h-2 w-2 rounded-full ${
-              !record.completed ? 'bg-yellow-500' : 'bg-green-500'
-            }`} />
-            <div>
-              <p className="font-medium text-sm">{record.patientName}</p>
-              <p className="text-xs text-muted-foreground">
-                {format(new Date(record.dueDate), 'MMM d, yyyy')}
-              </p>
+      {records.slice(0, 5).map((record: any) => {
+        const patient = getPatientForRecord(record);
+        if (!patient) return null;
+        return (
+          <Link
+            key={record.id}
+            href={`/dashboard/patients/${patient.id}`}
+            className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
+          >
+            <div className="flex items-center gap-3">
+              <div className={`h-2 w-2 rounded-full ${
+                !record.completed ? 'bg-yellow-500' : 'bg-green-500'
+              }`} />
+              <div>
+                <p className="font-medium text-sm">{patient.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {format(new Date(record.date), 'MMM d, yyyy')}
+                </p>
+              </div>
             </div>
-          </div>
-          <Badge variant={record.completed ? 'secondary' : 'default'}>
-            {record.completed ? 'Completed' : 'Pending'}
-          </Badge>
-        </Link>
-      ))}
+            <Badge variant={record.completed ? 'secondary' : 'default'}>
+              {record.completed ? 'Completed' : 'Pending'}
+            </Badge>
+          </Link>
+        )
+      })}
     </div>
   );
 }
@@ -118,30 +104,62 @@ function RecentRecordsList() {
 export default function DashboardPage() {
   const { user } = useUser();
   const { role } = useRole();
+  const firestore = useFirestore();
 
-  const patientData = useMemo(() => {
-    if (role === 'staff') {
-        const staffMember = staff.find(s => s.id === user?.uid);
-        if (staffMember?.assignedPatients) {
-            return patients.filter(p => staffMember.assignedPatients.includes(p.id));
-        }
-        return [];
+  const staffQuery = useMemoFirebase(() => {
+    return firestore ? collection(firestore, 'staff') : null;
+  }, [firestore]);
+  const { data: staffData } = useCollection<Staff>(staffQuery);
+
+  const assignedPatientIds = useMemo(() => {
+    if (role === 'staff' && staffData) {
+      const staffMember = staffData.find(s => s.id === user?.uid);
+      return staffMember?.assignedPatients || [];
     }
-    return patients;
-  }, [role, user]);
+    return null;
+  }, [role, user, staffData]);
 
-  const patientNames = useMemo(() => patientData.map(p => p.name), [patientData]);
-  const filteredTasks = useMemo(() => tasks.filter(t => patientNames.includes(t.patientName)), [tasks, patientNames]);
+  const patientsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    if (role === 'staff') {
+      if (assignedPatientIds && assignedPatientIds.length > 0) {
+        return query(collection(firestore, 'patients'), where('id', 'in', assignedPatientIds));
+      }
+      return null; // Staff with no assigned patients
+    }
+    return collection(firestore, 'patients');
+  }, [firestore, role, assignedPatientIds]);
 
-  const pendingTasks = filteredTasks.filter(t => !t.completed).length;
+  const { data: patients } = useCollection<Patient>(patientsQuery);
+  
+  const recordsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collectionGroup(firestore, 'dailyRecords');
+  }, [firestore]);
+  
+  const { data: allRecords } = useCollection<Task>(recordsQuery);
+
+  const recordsForUser = useMemo(() => {
+    if (!allRecords) return [];
+    if (role === 'admin') return allRecords;
+    if (role === 'staff' && assignedPatientIds) {
+      return allRecords.filter(record => 
+        assignedPatientIds.some(patientId => record.path?.startsWith(`patients/${patientId}`))
+      );
+    }
+    return [];
+  }, [allRecords, role, assignedPatientIds]);
+
+
+  const pendingTasks = recordsForUser.filter(t => !t.completed).length;
   const today = new Date();
-  const todayRecords = filteredTasks.filter(
-    t => new Date(t.dueDate).toDateString() === today.toDateString()
+  const todayRecords = recordsForUser.filter(
+    t => new Date(t.date).toDateString() === today.toDateString()
   ).length;
 
   const completionRate =
-    patientData?.length && todayRecords !== undefined
-      ? `${Math.round((todayRecords / Math.max(patientData.length, 1)) * 100)}%`
+    patients?.length && todayRecords !== undefined
+      ? `${Math.round((todayRecords / Math.max(patients.length, 1)) * 100)}%`
       : '0%';
 
   return (
@@ -158,7 +176,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="Total Patients"
-          value={patientData?.length || 0}
+          value={patients?.length || 0}
           icon={<Users className="h-4 w-4 text-primary" />}
           description={role === 'admin' ? "All active patients" : "Your assigned patients"}
         />
@@ -189,7 +207,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <Button asChild className="h-auto py-4 flex-col gap-2">
-              <Link href="/dashboard/patients">
+              <Link href="/dashboard/records">
                 <ClipboardList className="h-5 w-5" />
                 <span>Create Daily Record</span>
               </Link>
@@ -223,11 +241,11 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Recent Records</CardTitle>
             <Button asChild variant="ghost" size="sm">
-              <Link href="/dashboard/patients">View all</Link>
+              <Link href="/dashboard/records">View all</Link>
             </Button>
           </CardHeader>
           <CardContent>
-            <RecentRecordsList />
+            <RecentRecordsList records={recordsForUser} patients={patients} />
           </CardContent>
         </Card>
       </div>

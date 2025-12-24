@@ -1,3 +1,4 @@
+
 // This file contains placeholder data.
 // In a real application, this data would be fetched from a database.
 import { type Timestamp } from "firebase/firestore";
@@ -24,7 +25,7 @@ export type Patient = {
 export type Staff = {
   id: string;
   name: string;
-  role: 'Nurse' | 'Doctor' | 'Admin' | 'Therapist';
+  role: 'Nurse' | 'Doctor' | 'Admin' | 'Therapist' | 'Staff';
   certifications: string[];
   schedule: string;
   avatarUrl: string;
@@ -48,6 +49,7 @@ export type Task = {
   patientName: string;
   date: string;
   completed: boolean;
+  path?: string; // Path of the document in Firestore
 };
 
 // This mock data is kept for reference but is no longer used in the main pages.
@@ -56,7 +58,3 @@ export const patients: Patient[] = [];
 export const staff: Staff[] = [];
 export const appointments: Appointment[] = [];
 export const tasks: Task[] = [];
-
-    
-
-    
