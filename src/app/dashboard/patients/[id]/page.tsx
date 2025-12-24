@@ -277,7 +277,7 @@ export default function PatientDetailPage({
     const recordsRef = collection(firestore, `patients/${id}/dailyRecords`);
     const newRecord = {
         description: newRecordDescription,
-        patientName: patient?.name || '',
+        patientName: patient?.name || 'Unknown Patient',
         date: new Date().toISOString(),
         completed: false,
     };

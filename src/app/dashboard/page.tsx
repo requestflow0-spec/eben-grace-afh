@@ -65,8 +65,7 @@ function RecentRecordsList({ records, patients }: { records: Task[] | null, pati
   }
 
   const getPatientForRecord = (record: Task) => {
-    // This is not efficient for large datasets, consider denormalizing patient name on record
-    return patients?.find(p => record.path?.startsWith(`patients/${p.id}`));
+    return patients?.find(p => p.name === record.patientName);
   }
 
   return (
@@ -126,8 +125,6 @@ export default function DashboardPage() {
       return collection(firestore, 'patients');
     }
     if (role === 'staff') {
-      // If a staff member has no assigned patients, we must not query.
-      // An 'in' query with an empty array is invalid and throws a permission error.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
       }

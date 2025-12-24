@@ -50,8 +50,6 @@ export default function DailyRecordsPage() {
       return collection(firestore, 'patients');
     }
     if (role === 'staff') {
-      // If a staff member has no assigned patients, we must not query.
-      // An 'in' query with an empty array is invalid and throws a permission error.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collection(firestore, 'patients'), where('__name__', 'in', assignedPatientIds));
       }
