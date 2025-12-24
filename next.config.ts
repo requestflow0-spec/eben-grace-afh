@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -30,6 +31,9 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
     ],
+  },
+  env: {
+    ADMIN_EMAIL: process.env.ADMIN_EMAIL,
   },
 };
 
