@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -40,11 +40,11 @@ import {
   Calendar,
 } from 'lucide-react';
 import { differenceInYears, parseISO } from 'date-fns';
-import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
+import { collection, addDoc, serverTimestamp, query, where } from 'firebase/firestore';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
-import type { Patient } from '@/lib/data';
+import type { Patient, Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useRole } from '@/hooks/useRole';
@@ -306,12 +306,35 @@ function PatientCard({ patient }: { patient: Patient }) {
 export default function PatientsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const firestore = useFirestore();
+  const { user } = useUser();
   const { role } = useRole();
   
+  const staffQuery = useMemoFirebase(() => {
+    return firestore ? collection(firestore, 'staff') : null;
+  }, [firestore]);
+  const { data: staffData } = useCollection<Staff>(staffQuery);
+
+  const assignedPatientIds = useMemo(() => {
+    if (role === 'staff' && staffData) {
+      const staffMember = staffData.find(s => s.id === user?.uid);
+      return staffMember?.assignedPatients || [];
+    }
+    return null;
+  }, [role, user, staffData]);
+
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return collection(firestore, 'patients');
-  }, [firestore]);
+    if (role === 'admin') {
+      return collection(firestore, 'patients');
+    }
+    if (role === 'staff') {
+      if (assignedPatientIds && assignedPatientIds.length > 0) {
+        return query(collection(firestore, 'patients'), where('id', 'in', assignedPatientIds));
+      }
+      return null;
+    }
+    return null;
+  }, [firestore, role, assignedPatientIds]);
 
   const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
 
@@ -363,7 +386,7 @@ export default function PatientsPage() {
             <p className="text-muted-foreground text-center max-w-sm">
               {searchQuery
                 ? 'No patients match your search criteria.'
-                : 'Add your first patient to get started.'}
+                : role === 'admin' ? 'Add your first patient to get started.' : 'You have not been assigned any patients.'}
             </p>
             {!searchQuery && role === 'admin' && (
               <div className="mt-4">

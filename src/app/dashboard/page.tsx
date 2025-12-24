@@ -114,6 +114,7 @@ export default function DashboardPage() {
   const assignedPatientIds = useMemo(() => {
     if (role === 'staff' && staffData) {
       const staffMember = staffData.find(s => s.id === user?.uid);
+      // Ensure we always return an array, even if it's empty.
       return staffMember?.assignedPatients || [];
     }
     return null;
@@ -121,13 +122,19 @@ export default function DashboardPage() {
 
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
+    if (role === 'admin') {
+      return collection(firestore, 'patients');
+    }
     if (role === 'staff') {
+      // For staff, only run the query if they have been assigned patients.
+      // An 'in' query with an empty array is invalid.
       if (assignedPatientIds && assignedPatientIds.length > 0) {
         return query(collection(firestore, 'patients'), where('id', 'in', assignedPatientIds));
       }
-      return null; // Staff with no assigned patients
+      // If staff has no assigned patients, don't run a query.
+      return null;
     }
-    return collection(firestore, 'patients');
+    return null;
   }, [firestore, role, assignedPatientIds]);
 
   const { data: patients } = useCollection<Patient>(patientsQuery);
@@ -143,6 +150,7 @@ export default function DashboardPage() {
     if (!allRecords) return [];
     if (role === 'admin') return allRecords;
     if (role === 'staff' && assignedPatientIds) {
+      // If the staff has no assigned patients, this will correctly return an empty array.
       return allRecords.filter(record => 
         assignedPatientIds.some(patientId => record.path?.startsWith(`patients/${patientId}`))
       );
