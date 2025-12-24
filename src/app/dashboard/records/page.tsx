@@ -29,7 +29,7 @@ type PatientWithTasks = Patient & { tasks: Task[] };
 export default function DailyRecordsPage() {
   const firestore = useFirestore();
   const { user } = useUser();
-  const { role, isLoading: isRoleLoading } = useRole();
+  const { role, claims, isLoading: isRoleLoading } = useRole();
   
   const staffQuery = useMemoFirebase(() => {
     if (!firestore || !user || role !== 'admin') return null;
@@ -49,7 +49,7 @@ export default function DailyRecordsPage() {
 
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore || !user || isRoleLoading) return null;
-    const adminId = role === 'admin' ? user.uid : user.token.adminId;
+    const adminId = role === 'admin' ? user.uid : claims?.adminId;
     if (!adminId) return null;
 
     if (role === 'admin') {
@@ -62,13 +62,13 @@ export default function DailyRecordsPage() {
       return null;
     }
     return null;
-  }, [firestore, user, role, isRoleLoading, assignedPatientIds]);
+  }, [firestore, user, role, isRoleLoading, assignedPatientIds, claims]);
 
   const { data: patients, isLoading: isLoadingPatients } = useCollection<Patient>(patientsQuery);
   
   const recordsQuery = useMemoFirebase(() => {
     if (!firestore || !user || isRoleLoading) return null;
-    const adminId = role === 'admin' ? user.uid : user.token.adminId;
+    const adminId = role === 'admin' ? user.uid : claims?.adminId;
     if (!adminId) return null;
 
     if (role === 'admin') {
@@ -81,13 +81,13 @@ export default function DailyRecordsPage() {
         return null;
     }
     return null;
-  }, [firestore, user, role, isRoleLoading, assignedPatientIds]);
+  }, [firestore, user, role, isRoleLoading, assignedPatientIds, claims]);
   
   const { data: allTasks, isLoading: isLoadingTasks } = useCollection<Task>(recordsQuery);
 
   const handleToggleRecordStatus = (task: Task) => {
     if (!firestore || !task.id || !task.patientId || !user) return;
-    const adminId = role === 'admin' ? user.uid : user.token.adminId;
+    const adminId = role === 'admin' ? user.uid : claims?.adminId;
     if (!adminId) return;
 
     const recordRef = doc(firestore, `admins/${adminId}/patients/${task.patientId}/dailyRecords/${task.id}`);

@@ -94,7 +94,7 @@ function RecentRecordsList({ records }: { records: Task[] | null }) {
 
 export default function DashboardPage() {
   const { user } = useUser();
-  const { role, isLoading: isRoleLoading } = useRole();
+  const { role, claims, isLoading: isRoleLoading } = useRole();
   const firestore = useFirestore();
 
   const staffQuery = useMemoFirebase(() => {
@@ -119,7 +119,7 @@ export default function DashboardPage() {
 
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore || !user || isRoleLoading) return null;
-    const adminId = role === 'admin' ? user.uid : user.token.adminId; // staff has adminId claim
+    const adminId = role === 'admin' ? user.uid : claims?.adminId; // staff has adminId claim
     if (!adminId) return null;
 
     if (role === 'admin') {
@@ -133,13 +133,13 @@ export default function DashboardPage() {
       return null;
     }
     return null;
-  }, [firestore, user, role, isRoleLoading, assignedPatientIds]);
+  }, [firestore, user, role, isRoleLoading, assignedPatientIds, claims]);
 
   const { data: patients } = useCollection<Patient>(patientsQuery);
 
   const allRecordsQuery = useMemoFirebase(() => {
     if (!firestore || !user || isRoleLoading) return null;
-    const adminId = role === 'admin' ? user.uid : user.token.adminId;
+    const adminId = role === 'admin' ? user.uid : claims?.adminId;
     if (!adminId) return null;
 
     if (role === 'admin') {
@@ -152,7 +152,7 @@ export default function DashboardPage() {
       return null;
     }
     return null;
-  }, [firestore, user, role, isRoleLoading, assignedPatientIds]);
+  }, [firestore, user, role, isRoleLoading, assignedPatientIds, claims]);
   
   const { data: allRecords } = useCollection<Task>(allRecordsQuery);
 
