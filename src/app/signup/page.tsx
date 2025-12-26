@@ -1,11 +1,22 @@
-
 'use client';
 
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword } from 'firebase/auth';
-import { useAuth } from '@/firebase';
+import { 
+  createUserWithEmailAndPassword, 
+  signInWithEmailAndPassword,
+  updateProfile
+} from 'firebase/auth';
+import { useAuth, useFirestore } from '@/firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  writeBatch 
+} from 'firebase/firestore';
+
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -21,6 +32,7 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function SignupPage() {
   const auth = useAuth();
+  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [name, setName] = useState('');
@@ -29,23 +41,23 @@ export default function SignupPage() {
   const [repeatPassword, setRepeatPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
-  const handleAdminSignUp = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!auth) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Firebase not initialized. Please try again later.',
-      });
-      return;
+    
+    if (!auth || !firestore) {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Services not available. Please try again later.',
+        });
+        return;
     }
 
     if (password !== repeatPassword) {
       toast({
         variant: 'destructive',
         title: 'Sign-up Failed',
-        description: 'Passwords do not match. Please try again.',
+        description: 'Passwords do not match.',
       });
       return;
     }
@@ -53,27 +65,78 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      // 1. Call the secure API route to create the admin user
-      const response = await fetch('/api/signup-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
-      });
+      // Check for an existing admin first.
+      const usersQuery = query(collection(firestore, "users"), where("role", "==", "admin"));
+      const adminSnapshot = await getDocs(usersQuery);
+      
+      if (adminSnapshot.empty) {
+        // This is the first user, sign them up as admin.
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
 
-      const data = await response.json();
+        await updateProfile(user, { displayName: name });
+        
+        // Create user profile in 'users' collection
+        const batch = writeBatch(firestore);
+        const userDocRef = doc(firestore, 'users', user.uid);
+        batch.set(userDocRef, {
+            email,
+            displayName: name,
+            role: 'admin',
+            createdAt: new Date(),
+        });
+        
+        await batch.commit();
 
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create admin account');
+        toast({ title: 'Admin account created successfully!' });
+        router.push('/dashboard');
+      } else {
+        // This is a staff signup, check for a pending invitation.
+        const staffQuery = query(
+          collection(firestore, "staff"),
+          where("email", "==", email),
+          where("status", "==", "pending")
+        );
+        const staffSnapshot = await getDocs(staffQuery);
+
+        if (staffSnapshot.empty) {
+          throw new Error("This email is not registered for staff signup. Please contact an administrator.");
+        }
+        
+        const staffDoc = staffSnapshot.docs[0];
+
+        // Create the user
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        const user = userCredential.user;
+        await updateProfile(user, { displayName: name });
+        
+        // Use a batch to update staff doc and create user doc atomically
+        const batch = writeBatch(firestore);
+        
+        // 1. Update the staff document
+        batch.update(staffDoc.ref, {
+          status: 'active',
+          id: user.uid,
+          name: name,
+          updatedAt: new Date(),
+        });
+
+        // 2. Create the user profile document
+        const userDocRef = doc(firestore, 'users', user.uid);
+        batch.set(userDocRef, {
+            email,
+            displayName: name,
+            role: 'staff',
+            createdAt: new Date(),
+        });
+
+        await batch.commit();
+
+        toast({ title: 'Staff account created successfully!' });
+        router.push('/dashboard');
       }
-
-      // 2. If server-side creation is successful, sign the new user in
-      await signInWithEmailAndPassword(auth, email, password);
-
-      toast({ title: 'Admin account created successfully!' });
-      router.push('/dashboard');
-
     } catch (error: any) {
-      console.error('Admin Sign-Up Error:', error);
+      console.error('Sign-Up Error:', error);
       toast({
         variant: 'destructive',
         title: 'Sign-up Failed',
@@ -84,7 +147,6 @@ export default function SignupPage() {
     }
   };
 
-
   return (
     <div className="flex items-center justify-center min-h-screen bg-background p-4">
       <Card className="w-full max-w-md">
@@ -94,11 +156,11 @@ export default function SignupPage() {
             <CardTitle className="text-3xl font-headline">CareHub Pro</CardTitle>
           </div>
           <CardDescription>
-            Create the primary administrator account for this application.
+            Create an account to join your team.
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleAdminSignUp} className="space-y-4">
+          <form onSubmit={handleSignUp} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="name">Full Name</Label>
               <Input
@@ -147,7 +209,7 @@ export default function SignupPage() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Creating Account...' : 'Create Admin Account'}
+              {isLoading ? 'Creating Account...' : 'Create Account'}
             </Button>
           </form>
           <div className="mt-4 text-center text-sm">

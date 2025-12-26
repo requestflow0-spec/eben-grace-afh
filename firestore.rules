@@ -14,16 +14,16 @@ service cloud.firestore {
     }
 
     // Reads the user's role from their document in the /users collection
-    function getRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    function getRole(uid) {
+      return get(/databases/$(database)/documents/users/$(uid)).data.role;
     }
     
     function isAdmin() {
-      return isSignedIn() && getRole() == 'admin';
+      return isSignedIn() && getRole(request.auth.uid) == 'admin';
     }
 
     function isStaff() {
-      return isSignedIn() && getRole() == 'staff';
+      return isSignedIn() && getRole(request.auth.uid) == 'staff';
     }
     
     // --- User Profile Rules ---
@@ -31,12 +31,22 @@ service cloud.firestore {
       // Any authenticated user can read any user profile (e.g., for display names).
       allow get: if isSignedIn();
       
-      // Admins can create staff user profiles.
+      // An admin can create a staff user profile.
       allow create: if isAdmin();
 
-      // A user can create their own profile, but cannot assign themselves a role.
-      // This is for the initial signup. Admins can assign roles.
-      allow create: if isOwner(userId) && (!('role' in request.resource.data) || request.resource.data.role == null);
+      // A user can create their own profile.
+      // Rule 1: First user ever can create an 'admin' profile.
+      allow create: if isOwner(userId) 
+                    && request.resource.data.role == 'admin'
+                    && !exists(/databases/$(database)/documents/users);
+      
+      // Rule 2: A user signing up as staff can create their profile
+      // if a PENDING staff invitation exists for their email.
+      allow create: if isOwner(userId) 
+                    && request.resource.data.role == 'staff'
+                    && exists(/databases/$(database)/documents/staff/{userId})
+                    && get(/databases/$(database)/documents/staff/{userId}).data.email == request.resource.data.email;
+
 
       // Users can update their own profile, but cannot change their role.
       allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
@@ -72,8 +82,20 @@ service cloud.firestore {
     match /staff/{staffId} {
       // All authenticated users (admin and other staff) can see the staff list.
       allow read: if isSignedIn();
-      // Only admins can create, update, or delete staff profiles.
-      allow write: if isAdmin();
+      
+      // Only admins can create new (pending) staff documents.
+      allow create: if isAdmin() && request.resource.data.status == 'pending';
+      
+      // A user can update their own staff profile from 'pending' to 'active' during signup
+      allow update: if isOwner(staffId) 
+                    && resource.data.status == 'pending'
+                    && request.resource.data.status == 'active';
+
+      // Admins can update any staff profile.
+      allow update: if isAdmin();
+
+      // Only admins can delete staff profiles.
+      allow delete: if isAdmin();
     }
   }
 }

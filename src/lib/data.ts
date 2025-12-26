@@ -34,6 +34,7 @@ export type Staff = {
   avatarHint: string;
   available: boolean;
   assignedPatients: string[];
+  status: 'pending' | 'active';
 };
 
 export type Appointment = {

@@ -22,75 +22,68 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, Mail, Users, KeyRound, Phone } from 'lucide-react';
+import { Plus, Search, Mail, Users } from 'lucide-react';
 import { type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRole } from '@/hooks/useRole';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 function AddStaffDialog() {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [password, setPassword] = useState('');
   const { toast } = useToast();
-  const { user } = useUser();
+  const firestore = useFirestore();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) {
-        toast({
-            variant: 'destructive',
-            title: "Authentication Error",
-            description: "You must be logged in to create staff.",
-        });
-        return;
-    }
+    if (!firestore) return;
 
     setIsSubmitting(true);
+    
+    const staffRef = collection(firestore, 'staff');
+    const newStaffDoc = {
+        email,
+        status: 'pending',
+        role: 'Staff', // Default role
+        name: 'Pending Invitation',
+        phone: '',
+        certifications: [],
+        schedule: 'Not set',
+        available: false,
+        assignedPatients: [],
+        avatarUrl: `https://picsum.photos/seed/${email}/200/200`,
+        avatarHint: 'person professional',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    };
 
-    try {
-      const idToken = await user.getIdToken();
-      const response = await fetch('/api/create-staff', {
-        method: 'POST',
-        headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ name, email, password, phone }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to create staff account');
-      }
-
-      toast({
-        title: "Staff Account Created",
-        description: `${name}'s account and profile have been created.`,
-      });
-
-      setOpen(false);
-      setName('');
-      setEmail('');
-      setPhone('');
-      setPassword('');
-
-    } catch (error: any) {
-      console.error("Error creating staff:", error);
-      toast({
-        variant: 'destructive',
-        title: "Operation Failed",
-        description: error.message || "Could not create the staff account.",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
+    addDoc(staffRef, newStaffDoc).then(() => {
+        toast({
+          title: "Invitation Sent",
+          description: `An invitation to sign up has been associated with ${email}.`,
+        });
+        setOpen(false);
+        setEmail('');
+    }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: staffRef.path,
+            operation: 'create',
+            requestResourceData: newStaffDoc,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: 'Could not create staff invitation.',
+        });
+    }).finally(() => {
+        setIsSubmitting(false);
+    });
   };
 
   return (
@@ -105,22 +98,10 @@ function AddStaffDialog() {
         <DialogHeader>
           <DialogTitle>Add New Staff Member</DialogTitle>
           <DialogDescription>
-            Create a profile and login account for a new staff member.
+            Enter the email of the staff member you want to invite. They will be able to sign up using this email.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
-             <Input
-                id="name"
-                name="name"
-                type="text"
-                required
-                placeholder="Staff's full name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-          </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
             <div className="relative">
@@ -137,44 +118,12 @@ function AddStaffDialog() {
                 />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number</Label>
-            <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                id="phone"
-                name="phone"
-                type="tel"
-                placeholder="+1 234 567 890"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                className="pl-9"
-                />
-            </div>
-          </div>
-           <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                minLength={6}
-                placeholder="Initial password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-9"
-                />
-            </div>
-          </div>
           <DialogFooter className="pt-2">
             <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
             </DialogClose>
-            <Button type="submit" disabled={isSubmitting || !email || !name || !password}>
-              {isSubmitting ? 'Creating...' : 'Create Staff Member'}
+            <Button type="submit" disabled={isSubmitting || !email}>
+              {isSubmitting ? 'Sending...' : 'Send Invitation'}
             </Button>
           </DialogFooter>
         </form>
@@ -184,8 +133,9 @@ function AddStaffDialog() {
 }
 
 function StaffCard({ member }: { member: Staff }) {
+  const isPending = member.status === 'pending';
   return (
-    <Link href={`/dashboard/staff/${member.id}`}>
+    <Link href={`/dashboard/staff/${member.id}`} className={isPending ? 'pointer-events-none' : ''}>
       <Card className="hover:bg-muted/50 transition-colors h-full">
         <CardContent className="p-4">
           <div className="flex items-start gap-4">
@@ -199,17 +149,17 @@ function StaffCard({ member }: { member: Staff }) {
               <h3 className="font-semibold text-foreground truncate">
                 {member.name}
               </h3>
-              <p className="text-sm text-muted-foreground">{member.role}</p>
+              <p className="text-sm text-muted-foreground">{isPending ? member.email : member.role}</p>
               <div className="flex flex-wrap gap-2 mt-2">
                 <Badge
-                  variant={member.available ? 'secondary' : 'outline'}
-                  className={
-                    member.available
-                      ? 'bg-green-500/20 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-transparent'
-                      : ''
-                  }
+                    variant={isPending ? 'destructive' : member.available ? 'secondary' : 'outline'}
+                    className={
+                        !isPending && member.available
+                        ? 'bg-green-500/20 text-green-700 dark:bg-green-500/10 dark:text-green-400 border-transparent'
+                        : ''
+                    }
                 >
-                  {member.available ? 'Available' : 'Unavailable'}
+                  {isPending ? 'Pending Invitation' : member.available ? 'Available' : 'Unavailable'}
                 </Badge>
               </div>
             </div>
@@ -238,7 +188,8 @@ export default function StaffPage() {
     return staff.filter(
       member =>
         member.name.toLowerCase().includes(q) ||
-        member.role.toLowerCase().includes(q)
+        member.role.toLowerCase().includes(q) ||
+        member.email.toLowerCase().includes(q)
     );
   }, [staff, searchQuery]);
 
