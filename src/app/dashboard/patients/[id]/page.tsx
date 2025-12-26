@@ -94,9 +94,11 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 function LogBehaviorDialog() {
   const [open, setOpen] = useState(false);
   const [behaviors, setBehaviors] = useState<string[]>([]);
+  const [activity, setActivity] = useState<string[]>([]);
+  const [setting, setSetting] = useState<string[]>([]);
+  const [antecedent, setAntecedent] = useState<string[]>([]);
+  const [response, setResponse] = useState<string[]>([]);
   const [intensity, setIntensity] = useState('');
-  const [trigger, setTrigger] = useState<string[]>([]);
-  const [intervention, setIntervention] = useState<string[]>([]);
   const [comment, setComment] = useState('');
 
   const handleSave = () => {
@@ -104,8 +106,8 @@ function LogBehaviorDialog() {
     console.log({
       behaviors,
       intensity,
-      trigger,
-      intervention,
+      antecedent,
+      response: response,
       comment,
     });
     setOpen(false);
@@ -158,21 +160,41 @@ function LogBehaviorDialog() {
                     </Select>
                 </div>
             </div>
+             <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                  <Label htmlFor="activity">Activity</Label>
+                  <MultiSelect
+                      options={["Leisure", "Community", "Dining"]}
+                      selected={activity}
+                      onChange={setActivity}
+                      placeholder="Select activities..."
+                  />
+              </div>
+              <div className="space-y-2">
+                  <Label htmlFor="setting">Setting</Label>
+                  <MultiSelect
+                      options={["Community", "Bedroom", "Patio", "Living Area"]}
+                      selected={setting}
+                      onChange={setSetting}
+                      placeholder="Select settings..."
+                  />
+              </div>
+            </div>
             <div className="space-y-2">
-                <Label htmlFor="trigger">Trigger</Label>
+                <Label htmlFor="antecedent">Antecedent</Label>
                  <MultiSelect
                     options={["Given instruction", "Peer interaction", "Staff Interaction"]}
-                    selected={trigger}
-                    onChange={setTrigger}
-                    placeholder="What triggered this behaviour?"
+                    selected={antecedent}
+                    onChange={setAntecedent}
+                    placeholder="What was the antecedent?"
                 />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="intervention">Intervention/Response</Label>
+                <Label htmlFor="response">Intervention/Response</Label>
                 <MultiSelect
                     options={["Verbal redirection", "Blocked"]}
-                    selected={intervention}
-                    onChange={setIntervention}
+                    selected={response}
+                    onChange={setResponse}
                     placeholder="How was this addressed?"
                 />
             </div>
