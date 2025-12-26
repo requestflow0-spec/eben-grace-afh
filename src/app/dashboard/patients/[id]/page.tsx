@@ -121,91 +121,69 @@ function LogBehaviorDialog() {
           Log Behavior
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Log New Behavior</DialogTitle>
           <DialogDescription>
             Record an observed behavior and the context around it.
           </DialogDescription>
         </DialogHeader>
-        <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="behaviors" className="text-right">
-              Behaviors
-            </Label>
-            <div className="col-span-3">
-              <MultiSelectCreatable
-                options={["Eloping", "Wandering", "Rummaging"]}
-                selected={behaviors}
-                onChange={setBehaviors}
-                placeholder="Select behaviors..."
-              />
+        <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+            <div className="space-y-2">
+                <Label htmlFor="behaviors">Behaviors</Label>
+                <MultiSelectCreatable
+                    options={["Eloping", "Wandering", "Rummaging"]}
+                    selected={behaviors}
+                    onChange={setBehaviors}
+                    placeholder="Select or create behaviors..."
+                />
             </div>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="activity" className="text-right">
-              Activity
-            </Label>
-            <div className="col-span-3">
-              <MultiSelectCreatable
-                options={["Leisure", "Community", "Dining"]}
-                selected={activity}
-                onChange={setActivity}
-                placeholder="Select activity..."
-              />
+            <div className="space-y-2">
+                <Label htmlFor="activity">Activity</Label>
+                <MultiSelectCreatable
+                    options={["Leisure", "Community", "Dining"]}
+                    selected={activity}
+                    onChange={setActivity}
+                    placeholder="Select or create an activity..."
+                />
             </div>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="setting" className="text-right">
-              Setting
-            </Label>
-            <div className="col-span-3">
-              <MultiSelectCreatable
-                options={["Community", "Bedroom", "Patio", "Living Area"]}
-                selected={setting}
-                onChange={setSetting}
-                placeholder="Select setting..."
-              />
+            <div className="space-y-2">
+                <Label htmlFor="setting">Setting</Label>
+                <MultiSelectCreatable
+                    options={["Community", "Bedroom", "Patio", "Living Area"]}
+                    selected={setting}
+                    onChange={setSetting}
+                    placeholder="Select or create a setting..."
+                />
             </div>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="antecedent" className="text-right">
-              Antecedent
-            </Label>
-            <div className="col-span-3">
-              <MultiSelectCreatable
-                options={["Given instruction", "Peer interaction", "Staff Interaction"]}
-                selected={antecedent}
-                onChange={setAntecedent}
-                placeholder="Select antecedent..."
-              />
+            <div className="space-y-2">
+                <Label htmlFor="antecedent">Antecedent</Label>
+                <MultiSelectCreatable
+                    options={["Given instruction", "Peer interaction", "Staff Interaction"]}
+                    selected={antecedent}
+                    onChange={setAntecedent}
+                    placeholder="Select or create an antecedent..."
+                />
             </div>
-          </div>
-          <div className="grid grid-cols-4 items-center gap-4">
-            <Label htmlFor="response" className="text-right">
-              Response
-            </Label>
-            <div className="col-span-3">
-              <MultiSelectCreatable
-                options={["Verbal redirection", "Blocked"]}
-                selected={response}
-                onChange={setResponse}
-                placeholder="Select staff response..."
-              />
+            <div className="space-y-2">
+                <Label htmlFor="response">Response</Label>
+                <MultiSelectCreatable
+                    options={["Verbal redirection", "Blocked"]}
+                    selected={response}
+                    onChange={setResponse}
+                    placeholder="Select or create a staff response..."
+                />
             </div>
-          </div>
-          <div className="grid grid-cols-4 items-start gap-4">
-            <Label htmlFor="comment" className="text-right mt-2">
-              Comment
-            </Label>
-            <Textarea
-              id="comment"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              className="col-span-3"
-              placeholder="Add any additional comments..."
-            />
-          </div>
+            <div className="space-y-2">
+                <Label htmlFor="comment">Comment</Label>
+                <Textarea
+                    id="comment"
+                    value={comment}
+                    onChange={(e) => setComment(e.target.value)}
+                    placeholder="Add any additional comments..."
+                    rows={3}
+                />
+            </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
