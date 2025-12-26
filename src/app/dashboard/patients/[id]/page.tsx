@@ -81,6 +81,8 @@ import { FirestorePermissionError } from '@/firebase/errors';
 import { useRole } from '@/hooks/useRole';
 import { MultiSelect } from '@/components/ui/multi-select';
 
+type SleepStatus = 'awake' | 'asleep';
+const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function LogBehaviorDialog() {
   const [open, setOpen] = useState(false);
@@ -522,10 +524,6 @@ export default function PatientDetailPage({
     
   const availableStaff = (staffData || []).filter(s => s.status === 'active' && !(patient.assignedStaff || []).includes(s.id));
   
-  type SleepStatus = 'awake' | 'asleep';
-  const HOURS = Array.from({ length: 24 }, (_, i) => i);
-  
-
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4 mb-6">
@@ -962,5 +960,7 @@ export default function PatientDetailPage({
     </div>
   );
 }
+
+    
 
     
