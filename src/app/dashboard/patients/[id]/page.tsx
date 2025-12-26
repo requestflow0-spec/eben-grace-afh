@@ -93,7 +93,7 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function LogBehaviorDialog() {
   const [open, setOpen] = useState(false);
-  const [behavior, setBehavior] = useState('');
+  const [behavior, setBehavior] = useState<string[]>([]);
   const [activity, setActivity] = useState('');
   const [setting, setSetting] = useState('');
   const [antecedent, setAntecedent] = useState('');
@@ -141,16 +141,12 @@ function LogBehaviorDialog() {
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="behavior">Behaviour Type</Label>
-                    <Select value={behavior} onValueChange={setBehavior}>
-                        <SelectTrigger id="behavior">
-                            <SelectValue placeholder="Select behavior..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="eloping">Eloping</SelectItem>
-                            <SelectItem value="wandering">Wandering</SelectItem>
-                            <SelectItem value="rummaging">Rummaging</SelectItem>
-                        </SelectContent>
-                    </Select>
+                     <MultiSelect
+                        options={["Eloping", "Wandering", "Rummaging"]}
+                        selected={behavior}
+                        onChange={setBehavior}
+                        placeholder="Select behavior(s)..."
+                    />
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="intensity">Intensity</Label>
