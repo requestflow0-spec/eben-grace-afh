@@ -30,10 +30,6 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/staff/$(uid)).data;
     }
     
-    function isAssignedToPatient(patientId) {
-        return isSignedIn() && patientId in getStaffProfile(request.auth.uid).assignedPatients;
-    }
-    
     // --- User Profile Rules ---
     match /users/{userId} {
       // Any authenticated user can read any user profile (for display names, etc.).
@@ -52,15 +48,15 @@ service cloud.firestore {
 
     // --- Patient Rules ---
     match /patients/{patientId} {
-      // Admins and assigned staff can read patient data.
-      allow read: if isAdmin() || isAssignedToPatient(patientId);
-      // Only admins and assigned staff can write to a patient's records.
-      allow write: if isAdmin() || isAssignedToPatient(patientId);
+      // Admins and staff can read patient data.
+      allow read: if isAdmin() || isStaff();
+      // Only admins and staff can write to a patient's records.
+      allow write: if isAdmin() || isStaff();
 
       // --- Subcollection Rules for Patients ---
       match /{allSubcollections=**} {
         // Inherit parent permissions for all subcollections.
-        allow read, write: if isAdmin() || isAssignedToPatient(patientId);
+        allow read, write: if isAdmin() || isStaff();
       }
     }
 
@@ -80,5 +76,3 @@ service cloud.firestore {
     }
   }
 }
-
-    

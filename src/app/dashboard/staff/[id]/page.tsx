@@ -1,7 +1,7 @@
 
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -9,9 +9,6 @@ import {
   Phone,
   Calendar as CalendarIcon,
   Edit,
-  Plus,
-  User,
-  X,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -26,7 +23,6 @@ import { Badge } from '@/components/ui/badge';
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -43,12 +39,10 @@ import {
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
-import type { Staff, Patient } from '@/lib/data';
+import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
+import { doc } from 'firebase/firestore';
+import type { Staff } from '@/lib/data';
 import { useRole } from '@/hooks/useRole';
-import { errorEmitter } from '@/firebase/error-emitter';
-import { FirestorePermissionError } from '@/firebase/errors';
 
 const timeOptions = Array.from({ length: 24 * 2 }, (_, i) => {
   const hour = Math.floor(i / 2);
@@ -176,16 +170,6 @@ function StaffDetailSkeleton() {
           </CardContent>
         </Card>
       </div>
-
-       <Card>
-          <CardHeader>
-             <Skeleton className="h-6 w-1/3" />
-          </CardHeader>
-          <CardContent className="space-y-4">
-             <Skeleton className="h-16 w-full" />
-             <Skeleton className="h-16 w-full" />
-          </CardContent>
-        </Card>
     </div>
   );
 }
@@ -207,59 +191,9 @@ export default function StaffDetailPage({
 
   const { data: member, isLoading: isStaffLoading } = useDoc<Staff>(staffDocRef);
 
-  const patientsQuery = useMemoFirebase(() => {
-      if (!firestore) return null;
-      return collection(firestore, 'patients');
-  }, [firestore]);
-
-  const { data: allPatients, isLoading: arePatientsLoading } = useCollection<Patient>(patientsQuery);
-  
-  const [assignedPatients, setAssignedPatients] = useState<Patient[]>([]);
-  const [selectedPatientId, setSelectedPatientId] = useState<string>('');
-  const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
-
-  useEffect(() => {
-    if (member && member.assignedPatients && allPatients) {
-      const assigned = allPatients.filter(p => member.assignedPatients.includes(p.id));
-      setAssignedPatients(assigned);
-    }
-  }, [member, allPatients]);
-
   const canEdit = role === 'admin';
-
-  const handleAssignPatient = () => {
-    if (!firestore || !staffDocRef || !selectedPatientId) return;
-
-    updateDoc(staffDocRef, {
-      assignedPatients: arrayUnion(selectedPatientId)
-    }).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: staffDocRef.path,
-        operation: 'update',
-        requestResourceData: { assignedPatients: arrayUnion(selectedPatientId) },
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
-
-    setSelectedPatientId('');
-    setIsAssignDialogOpen(false);
-  };
-
-  const handleRemovePatient = (patientId: string) => {
-    if (!firestore || !staffDocRef) return;
-    updateDoc(staffDocRef, {
-      assignedPatients: arrayRemove(patientId)
-    }).catch(async (serverError) => {
-      const permissionError = new FirestorePermissionError({
-        path: staffDocRef.path,
-        operation: 'update',
-        requestResourceData: { assignedPatients: arrayRemove(patientId) },
-      });
-      errorEmitter.emit('permission-error', permissionError);
-    });
-  };
   
-  if (isStaffLoading || arePatientsLoading) {
+  if (isStaffLoading) {
     return <StaffDetailSkeleton />;
   }
 
@@ -276,10 +210,6 @@ export default function StaffDetailPage({
       </div>
     );
   }
-
-  const unassignedPatients = allPatients?.filter(
-    p => !assignedPatients.some(ap => ap.id === p.id)
-  ) || [];
 
   return (
     <div className="space-y-6">
@@ -397,114 +327,6 @@ export default function StaffDetailPage({
           </CardContent>
         </Card>
       </div>
-
-      <Card>
-        <CardHeader className="flex-row items-center justify-between">
-          <div>
-            <CardTitle>Assigned Patients</CardTitle>
-            <CardDescription>
-              Patients currently assigned to {member.name}.
-            </CardDescription>
-          </div>
-          {canEdit && (
-            <Dialog
-              open={isAssignDialogOpen}
-              onOpenChange={setIsAssignDialogOpen}
-            >
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="mr-2 h-4 w-4" />
-                  Assign Patient
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Assign Patient</DialogTitle>
-                  <DialogDescription>
-                    Select a patient to assign to {member.name}.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 space-y-4">
-                  <Select
-                    value={selectedPatientId}
-                    onValueChange={setSelectedPatientId}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a patient to assign" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {unassignedPatients.map(p => (
-                        <SelectItem key={p.id} value={p.id}>
-                          {p.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <DialogFooter>
-                  <Button
-                    variant="outline"
-                    onClick={() => setIsAssignDialogOpen(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button onClick={handleAssignPatient} disabled={!selectedPatientId}>
-                    Assign Patient
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
-        </CardHeader>
-        <CardContent>
-          {assignedPatients.length > 0 ? (
-            <div className="space-y-2">
-              {assignedPatients.map(patient => (
-                <div
-                  key={patient.id}
-                  className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="h-10 w-10">
-                      <AvatarImage
-                        src={patient.avatarUrl}
-                        alt={patient.name}
-                        data-ai-hint={patient.avatarHint}
-                      />
-                      <AvatarFallback>
-                        {patient.name.charAt(0)}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <p className="font-medium">{patient.name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        ID: ...{patient.id.slice(-4)}
-                      </p>
-                    </div>
-                  </div>
-                  {canEdit && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      onClick={() => handleRemovePatient(patient.id)}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  )}
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center text-muted-foreground py-8">
-              <User className="mx-auto h-10 w-10 mb-2" />
-              <p>No patients assigned yet.</p>
-            </div>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }
-
-    
