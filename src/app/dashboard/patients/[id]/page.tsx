@@ -39,7 +39,7 @@ import {
   ResponsiveContainer,
 } from 'recharts';
 
-import { staff, type Task } from '@/lib/data';
+import { type Task, type Staff } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -413,6 +413,13 @@ export default function PatientDetailPage({
 
   const { data: tasks, isLoading: areTasksLoading } = useCollection<Task>(recordsQuery);
 
+  const staffQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'staff');
+  }, [firestore]);
+
+  const { data: staffData, isLoading: areStaffLoading } = useCollection<Staff>(staffQuery);
+
   const [isEditing, setIsEditing] = useState(false);
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
@@ -456,7 +463,9 @@ export default function PatientDetailPage({
     });
   };
 
-  if (isPatientLoading || areTasksLoading) {
+  const isLoading = isPatientLoading || areTasksLoading || areStaffLoading;
+
+  if (isLoading) {
     return <PatientDetailSkeleton />;
   }
 
@@ -477,10 +486,12 @@ export default function PatientDetailPage({
   const age = patient.dateOfBirth
     ? differenceInYears(new Date(), parseISO(patient.dateOfBirth))
     : null;
-  const assignedStaff = staff
-    .filter(s => s.role === 'Nurse' || s.role === 'Doctor')
-    .slice(0, 1);
-  const availableStaff = staff.filter(s => s.role !== 'Admin');
+  
+  const assignedStaff = (staffData || [])
+    .filter(s => (patient.assignedStaff || []).includes(s.id));
+    
+  const availableStaff = (staffData || []).filter(s => s.role !== 'Admin' && s.status === 'active');
+  
   type SleepStatus = 'awake' | 'asleep';
   const HOURS = Array.from({ length: 24 }, (_, i) => i);
   
@@ -742,7 +753,7 @@ export default function PatientDetailPage({
                                   </p>
                                   <p className="text-xs text-muted-foreground mt-1">
                                     By{' '}
-                                    {staff.find(s => s.role === 'Nurse')
+                                    {(staffData || []).find(s => s.role === 'Nurse')
                                       ?.name || 'Unknown'}
                                   </p>
                                 </div>

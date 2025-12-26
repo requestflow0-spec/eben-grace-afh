@@ -8,7 +8,7 @@ export type Patient = {
   name: string;
   age: number;
   gender: 'Male' | 'Female' | 'Other';
-  assignedNurse: string;
+  assignedStaff: string[];
   emergencyContact: { name: string; phone: string; relation: string };
   medicalHistory: string;
   carePlan: string;
@@ -62,5 +62,7 @@ export const patients: Patient[] = [];
 export const staff: Staff[] = [];
 export const appointments: Appointment[] = [];
 export const tasks: Task[] = [];
+
+    
 
     
