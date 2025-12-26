@@ -26,13 +26,6 @@ service cloud.firestore {
       return isSignedIn() && getRole(request.auth.uid) == 'staff';
     }
     
-    // Checks if a staff invitation exists for the given email.
-    function staffInvitationExists(email) {
-        return exists(/databases/$(database)/documents/staff/{staffId}
-            .where('email', '==', email)
-            .where('status', '==', 'pending'));
-    }
-
     // --- User Profile Rules ---
     match /users/{userId} {
       // Any authenticated user can read any user profile (for display names, etc.).
@@ -44,11 +37,8 @@ service cloud.firestore {
                     && request.resource.data.role == 'admin'
                     && !exists(/databases/$(database)/documents/users);
 
-      // A STAFF SIGNUP: A user can create their own profile with a 'staff' role
-      // ONLY if a pending invitation exists for their email address.
-      allow create: if isOwner(userId)
-                    && request.resource.data.role == 'staff'
-                    && staffInvitationExists(request.resource.data.email);
+      // Staff profiles are created by the admin or a server process, not by the user directly on signup.
+      // So, no general 'staff' create rule is needed here.
 
       // Users can update their own profile, but cannot change their role.
       allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;

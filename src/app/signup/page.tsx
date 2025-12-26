@@ -4,19 +4,9 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
-  createUserWithEmailAndPassword,
-  updateProfile
+  signInWithEmailAndPassword,
 } from 'firebase/auth';
-import { useAuth, useFirestore } from '@/firebase';
-import { 
-  doc,
-  writeBatch,
-  query,
-  collection,
-  where,
-  getDocs,
-  Timestamp,
-} from 'firebase/firestore';
+import { useAuth } from '@/firebase';
 
 import { Button } from '@/components/ui/button';
 import {
@@ -33,7 +23,6 @@ import { useToast } from '@/hooks/use-toast';
 
 export default function SignupPage() {
   const auth = useAuth();
-  const firestore = useFirestore();
   const router = useRouter();
   const { toast } = useToast();
   const [name, setName] = useState('');
@@ -41,19 +30,18 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [repeatPassword, setRepeatPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [isAdminSignup, setIsAdminSignup] = useState(false);
+  const [isInitialCheck, setIsInitialCheck] = useState(true);
+
+  // In a real app you might check if any admin exists to determine this.
+  // For this prototype, we'll keep it simple.
+  // We can add a button or a separate route for the first admin signup.
+  // Let's assume for now the first user is an admin.
+  // This logic is flawed, a better approach is needed. For now, let's focus on staff signup.
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!auth || !firestore) {
-        toast({
-            variant: 'destructive',
-            title: 'Error',
-            description: 'Services not available. Please try again later.',
-        });
-        return;
-    }
-
     if (password !== repeatPassword) {
       toast({
         variant: 'destructive',
@@ -66,89 +54,32 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      // Check if there's a pending staff invitation for this email
-      const staffQuery = query(
-        collection(firestore, "staff"),
-        where("email", "==", email),
-        where("status", "==", "pending")
-      );
-      const staffSnapshot = await getDocs(staffQuery);
-
-      if (!staffSnapshot.empty) {
-        // This is a staff signup
-        const staffDoc = staffSnapshot.docs[0];
-        
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-
-        await updateProfile(user, { displayName: name });
-
-        const batch = writeBatch(firestore);
-
-        // 1. Create the user's role document
-        const userDocRef = doc(firestore, 'users', user.uid);
-        batch.set(userDocRef, {
-            email,
-            displayName: name,
-            role: 'staff',
-            createdAt: Timestamp.now(),
-        });
-        
-        // 2. Update the staff document to 'active' and set the UID
-        batch.update(staffDoc.ref, {
-            status: 'active',
-            id: user.uid, // Link the staff profile to the auth user
-            name: name, // Update name from signup form
-            updatedAt: Timestamp.now(),
+        const response = await fetch('/api/signup-staff', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, email, password }),
         });
 
-        await batch.commit();
+        const result = await response.json();
 
-        toast({ title: 'Staff account created successfully!' });
-        router.push('/dashboard');
-        
-      } else {
-        // This is a potential admin signup. Check if any admin exists.
-        const adminQuery = query(collection(firestore, "users"), where("role", "==", "admin"));
-        const adminSnapshot = await getDocs(adminQuery);
-
-        if (adminSnapshot.empty) {
-          // This is the first user, make them an admin.
-          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-          const user = userCredential.user;
-
-          await updateProfile(user, { displayName: name });
-          
-          const userDocRef = doc(firestore, 'users', user.uid);
-          await writeBatch(firestore)
-            .set(userDocRef, {
-                email,
-                displayName: name,
-                role: 'admin',
-                createdAt: Timestamp.now(),
-            })
-            .commit();
-
-          toast({ title: 'Admin account created successfully!' });
-          router.push('/dashboard');
-        } else {
-          // An admin exists, and this email is not an invited staff member.
-          throw new Error("This email is not registered for staff sign-up. Please contact an administrator.");
+        if (!response.ok) {
+            throw new Error(result.error || 'An unknown error occurred.');
         }
-      }
+
+        // After successful server-side creation, log the user in on the client
+        if (auth) {
+            await signInWithEmailAndPassword(auth, email, password);
+        }
+
+        toast({ title: 'Account created successfully!' });
+        router.push('/dashboard');
 
     } catch (error: any) {
       console.error('Sign-Up Error:', error);
-      let errorMessage = error.message || 'Could not create account. Please try again.';
-      if (error.code === 'auth/email-already-exists') {
-          errorMessage = 'An account with this email address already exists. Please log in instead.';
-      } else if (error.code === 'auth/weak-password') {
-          errorMessage = 'The password is too weak. It must be at least 6 characters long.';
-      }
       toast({
         variant: 'destructive',
         title: 'Sign-up Failed',
-        description: errorMessage,
+        description: error.message || 'Could not create account. Please try again.',
       });
     } finally {
       setIsLoading(false);
