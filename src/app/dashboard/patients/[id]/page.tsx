@@ -111,7 +111,7 @@ function LogBehaviorDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" variant="outline">
+        <Button size="sm">
           <FilePlus className="mr-2 h-4 w-4" />
           Log Behavior
         </Button>
@@ -427,6 +427,7 @@ export default function PatientDetailPage({
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [isCreateRecordDialogOpen, setIsCreateRecordDialogOpen] = useState(false);
   const [newRecordDescription, setNewRecordDescription] = useState('');
+  const [activeTab, setActiveTab] = useState('care-records');
 
   const canEdit = role === 'admin';
 
@@ -703,7 +704,7 @@ export default function PatientDetailPage({
             </CardContent>
           </Card>
 
-          <Tabs defaultValue="care-records">
+          <Tabs defaultValue="care-records" value={activeTab} onValueChange={setActiveTab}>
             <Card>
               <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4">
                   <TabsList>
@@ -721,41 +722,45 @@ export default function PatientDetailPage({
                     </TabsTrigger>
                   </TabsList>
                   <div className="flex gap-2">
-                    <Dialog open={isCreateRecordDialogOpen} onOpenChange={setIsCreateRecordDialogOpen}>
-                      <DialogTrigger asChild>
-                        <Button size="sm">
-                          <Plus className="mr-2 h-4 w-4" />
-                          Add Record
-                        </Button>
-                      </DialogTrigger>
-                      <DialogContent>
-                        <DialogHeader>
-                          <DialogTitle>Create New Care Record</DialogTitle>
-                          <DialogDescription>
-                            Log a new event, observation, or task for {patient.name} for today.
-                          </DialogDescription>
-                        </DialogHeader>
-                        <div className="py-4 space-y-2">
-                            <Label htmlFor="record-description">Description</Label>
-                            <Textarea 
-                                id="record-description"
-                                placeholder="e.g., Patient seemed more energetic today and enjoyed the afternoon activity."
-                                value={newRecordDescription}
-                                onChange={(e) => setNewRecordDescription(e.target.value)}
-                                rows={4}
-                            />
-                        </div>
-                        <DialogFooter>
-                          <DialogClose asChild>
-                            <Button variant="outline">Cancel</Button>
-                          </DialogClose>
-                          <Button onClick={handleCreateTodayRecord} disabled={!newRecordDescription}>
-                            Save Record
-                          </Button>
-                        </DialogFooter>
-                      </DialogContent>
-                    </Dialog>
-                    <LogBehaviorDialog />
+                    {activeTab === 'care-records' && (
+                        <Dialog open={isCreateRecordDialogOpen} onOpenChange={setIsCreateRecordDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button size="sm">
+                            <Plus className="mr-2 h-4 w-4" />
+                            Add Record
+                            </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader>
+                            <DialogTitle>Create New Care Record</DialogTitle>
+                            <DialogDescription>
+                                Log a new event, observation, or task for {patient.name} for today.
+                            </DialogDescription>
+                            </DialogHeader>
+                            <div className="py-4 space-y-2">
+                                <Label htmlFor="record-description">Description</Label>
+                                <Textarea 
+                                    id="record-description"
+                                    placeholder="e.g., Patient seemed more energetic today and enjoyed the afternoon activity."
+                                    value={newRecordDescription}
+                                    onChange={(e) => setNewRecordDescription(e.target.value)}
+                                    rows={4}
+                                />
+                            </div>
+                            <DialogFooter>
+                            <DialogClose asChild>
+                                <Button variant="outline">Cancel</Button>
+                            </DialogClose>
+                            <Button onClick={handleCreateTodayRecord} disabled={!newRecordDescription}>
+                                Save Record
+                            </Button>
+                            </DialogFooter>
+                        </DialogContent>
+                        </Dialog>
+                    )}
+                    {activeTab === 'behavior-tracking' && (
+                        <LogBehaviorDialog />
+                    )}
                   </div>
               </CardHeader>
               <CardContent>
