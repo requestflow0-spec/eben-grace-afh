@@ -56,7 +56,7 @@ function AddStaffDialog() {
 
     try {
         const idToken = await user.getIdToken();
-        const response = await fetch('/api/create-staff', {
+        const response = await fetch('/api/create-staff', { 
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
