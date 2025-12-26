@@ -31,22 +31,15 @@ service cloud.firestore {
       // Any authenticated user can read any user profile (e.g., for display names).
       allow get: if isSignedIn();
       
-      // An admin can create a staff user profile.
-      allow create: if isAdmin();
+      // An admin can create a user profile for a new staff member.
+      allow create: if isAdmin() && request.resource.data.role == 'staff';
 
       // A user can create their own profile.
-      // Rule 1: First user ever can create an 'admin' profile.
+      // This rule allows the very first user to sign up and become an admin.
+      // It should only work if no other user documents exist.
       allow create: if isOwner(userId) 
                     && request.resource.data.role == 'admin'
                     && !exists(/databases/$(database)/documents/users);
-      
-      // Rule 2: A user signing up as staff can create their profile
-      // if a PENDING staff invitation exists for their email.
-      allow create: if isOwner(userId) 
-                    && request.resource.data.role == 'staff'
-                    && exists(/databases/$(database)/documents/staff/{userId})
-                    && get(/databases/$(database)/documents/staff/{userId}).data.email == request.resource.data.email;
-
 
       // Users can update their own profile, but cannot change their role.
       allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
@@ -83,16 +76,12 @@ service cloud.firestore {
       // All authenticated users (admin and other staff) can see the staff list.
       allow read: if isSignedIn();
       
-      // Only admins can create new (pending) staff documents.
-      allow create: if isAdmin() && request.resource.data.status == 'pending';
+      // Only admins can create new staff documents.
+      allow create: if isAdmin();
       
-      // A user can update their own staff profile from 'pending' to 'active' during signup
-      allow update: if isOwner(staffId) 
-                    && resource.data.status == 'pending'
-                    && request.resource.data.status == 'active';
-
-      // Admins can update any staff profile.
-      allow update: if isAdmin();
+      // A user can update their own staff profile if they are a staff member.
+      // Admins can also update any staff profile.
+      allow update: if (isStaff() && isOwner(staffId)) || isAdmin();
 
       // Only admins can delete staff profiles.
       allow delete: if isAdmin();

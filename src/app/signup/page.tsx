@@ -4,17 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { 
-  createUserWithEmailAndPassword, 
-  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
   updateProfile
 } from 'firebase/auth';
 import { useAuth, useFirestore } from '@/firebase';
 import { 
-  collection, 
-  query, 
-  where, 
-  getDocs, 
-  writeBatch 
+  doc,
+  writeBatch
 } from 'firebase/firestore';
 
 import { Button } from '@/components/ui/button';
@@ -62,85 +58,44 @@ export default function SignupPage() {
       return;
     }
 
+    // For this simplified app, we assume only the first user can sign up this way.
+    // In a real app, you might have an invite code or other checks.
     setIsLoading(true);
 
     try {
-      // Check for an existing admin first.
-      const usersQuery = query(collection(firestore, "users"), where("role", "==", "admin"));
-      const adminSnapshot = await getDocs(usersQuery);
-      
-      if (adminSnapshot.empty) {
-        // This is the first user, sign them up as admin.
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
+      // Create user in Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
 
-        await updateProfile(user, { displayName: name });
-        
-        // Create user profile in 'users' collection
-        const batch = writeBatch(firestore);
-        const userDocRef = doc(firestore, 'users', user.uid);
-        batch.set(userDocRef, {
+      // Update their Firebase Auth profile
+      await updateProfile(user, { displayName: name });
+      
+      // Create their user document in Firestore with an 'admin' role
+      const userDocRef = doc(firestore, 'users', user.uid);
+      await writeBatch(firestore)
+        .set(userDocRef, {
             email,
             displayName: name,
             role: 'admin',
             createdAt: new Date(),
-        });
-        
-        await batch.commit();
+        })
+        .commit();
 
-        toast({ title: 'Admin account created successfully!' });
-        router.push('/dashboard');
-      } else {
-        // This is a staff signup, check for a pending invitation.
-        const staffQuery = query(
-          collection(firestore, "staff"),
-          where("email", "==", email),
-          where("status", "==", "pending")
-        );
-        const staffSnapshot = await getDocs(staffQuery);
+      toast({ title: 'Admin account created successfully!' });
+      router.push('/dashboard');
 
-        if (staffSnapshot.empty) {
-          throw new Error("This email is not registered for staff signup. Please contact an administrator.");
-        }
-        
-        const staffDoc = staffSnapshot.docs[0];
-
-        // Create the user
-        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        const user = userCredential.user;
-        await updateProfile(user, { displayName: name });
-        
-        // Use a batch to update staff doc and create user doc atomically
-        const batch = writeBatch(firestore);
-        
-        // 1. Update the staff document
-        batch.update(staffDoc.ref, {
-          status: 'active',
-          id: user.uid,
-          name: name,
-          updatedAt: new Date(),
-        });
-
-        // 2. Create the user profile document
-        const userDocRef = doc(firestore, 'users', user.uid);
-        batch.set(userDocRef, {
-            email,
-            displayName: name,
-            role: 'staff',
-            createdAt: new Date(),
-        });
-
-        await batch.commit();
-
-        toast({ title: 'Staff account created successfully!' });
-        router.push('/dashboard');
-      }
     } catch (error: any) {
       console.error('Sign-Up Error:', error);
+      let errorMessage = 'Could not create account. Please try again.';
+      if (error.code === 'auth/email-already-exists') {
+          errorMessage = 'An account with this email address already exists. Please log in instead.';
+      } else if (error.code === 'auth/weak-password') {
+          errorMessage = 'The password is too weak. It must be at least 6 characters long.';
+      }
       toast({
         variant: 'destructive',
         title: 'Sign-up Failed',
-        description: error.message || 'Could not create account. Please try again.',
+        description: errorMessage,
       });
     } finally {
       setIsLoading(false);
@@ -156,7 +111,7 @@ export default function SignupPage() {
             <CardTitle className="text-3xl font-headline">CareHub Pro</CardTitle>
           </div>
           <CardDescription>
-            Create an account to join your team.
+            Create your administrator account.
           </CardDescription>
         </CardHeader>
         <CardContent>

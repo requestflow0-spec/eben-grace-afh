@@ -22,68 +22,72 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, Mail, Users } from 'lucide-react';
+import { Plus, Search, Mail, Users, KeyRound } from 'lucide-react';
 import { type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase, useUser, useAuth } from '@/firebase';
+import { collection } from 'firebase/firestore';
 import { useRole } from '@/hooks/useRole';
 import { Skeleton } from '@/components/ui/skeleton';
-import { FirestorePermissionError } from '@/firebase/errors';
-import { errorEmitter } from '@/firebase/error-emitter';
 
 function AddStaffDialog() {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const { toast } = useToast();
-  const firestore = useFirestore();
+  const { user } = useUser();
+  const auth = useAuth();
+
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!firestore) return;
-
-    setIsSubmitting(true);
-    
-    const staffRef = collection(firestore, 'staff');
-    const newStaffDoc = {
-        email,
-        status: 'pending',
-        role: 'Staff', // Default role
-        name: 'Pending Invitation',
-        phone: '',
-        certifications: [],
-        schedule: 'Not set',
-        available: false,
-        assignedPatients: [],
-        avatarUrl: `https://picsum.photos/seed/${email}/200/200`,
-        avatarHint: 'person professional',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-    };
-
-    addDoc(staffRef, newStaffDoc).then(() => {
-        toast({
-          title: "Invitation Sent",
-          description: `An invitation to sign up has been associated with ${email}.`,
-        });
-        setOpen(false);
-        setEmail('');
-    }).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: staffRef.path,
-            operation: 'create',
-            requestResourceData: newStaffDoc,
-        });
-        errorEmitter.emit('permission-error', permissionError);
+    if (!user || !auth) {
         toast({
             variant: 'destructive',
-            title: 'Error',
-            description: 'Could not create staff invitation.',
+            title: 'Authentication Error',
+            description: 'You must be logged in to perform this action.',
         });
-    }).finally(() => {
+        return;
+    }
+
+    setIsSubmitting(true);
+
+    try {
+        const idToken = await user.getIdToken();
+        const response = await fetch('/api/create-staff', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ name, email, password }),
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+            throw new Error(result.error || 'An unknown error occurred.');
+        }
+
+        toast({
+          title: "Staff Account Created",
+          description: `${name} can now log in with the provided credentials.`,
+        });
+        setOpen(false);
+        setName('');
+        setEmail('');
+        setPassword('');
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Error Creating Staff',
+            description: error.message,
+        });
+    } finally {
         setIsSubmitting(false);
-    });
+    }
   };
 
   return (
@@ -98,10 +102,22 @@ function AddStaffDialog() {
         <DialogHeader>
           <DialogTitle>Add New Staff Member</DialogTitle>
           <DialogDescription>
-            Enter the email of the staff member you want to invite. They will be able to sign up using this email.
+            Create an account for a new staff member. They will be able to log in with the email and password you provide.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="name">Full Name</Label>
+            <Input
+              id="name"
+              name="name"
+              type="text"
+              required
+              placeholder="Staff's Full Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
           <div className="space-y-2">
             <Label htmlFor="email">Email Address</Label>
             <div className="relative">
@@ -118,12 +134,29 @@ function AddStaffDialog() {
                 />
             </div>
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+             <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                id="password"
+                name="password"
+                type="password"
+                required
+                placeholder="Must be at least 6 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="pl-9"
+                minLength={6}
+                />
+            </div>
+          </div>
           <DialogFooter className="pt-2">
             <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
             </DialogClose>
-            <Button type="submit" disabled={isSubmitting || !email}>
-              {isSubmitting ? 'Sending...' : 'Send Invitation'}
+            <Button type="submit" disabled={isSubmitting || !email || !name || !password}>
+              {isSubmitting ? 'Creating...' : 'Create Account'}
             </Button>
           </DialogFooter>
         </form>
@@ -188,7 +221,7 @@ export default function StaffPage() {
     return staff.filter(
       member =>
         member.name.toLowerCase().includes(q) ||
-        member.role.toLowerCase().includes(q) ||
+        (member.role && member.role.toLowerCase().includes(q)) ||
         member.email.toLowerCase().includes(q)
     );
   }, [staff, searchQuery]);
