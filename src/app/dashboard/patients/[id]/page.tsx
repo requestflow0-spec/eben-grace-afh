@@ -73,7 +73,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useFirestore, useDoc, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { doc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
+import { doc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import type { Patient } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -463,6 +463,36 @@ export default function PatientDetailPage({
     });
   };
 
+  const handleAssignStaff = () => {
+    if (!patientRef || !selectedStaffId) return;
+    updateDoc(patientRef, {
+        assignedStaff: arrayUnion(selectedStaffId)
+    }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: patientRef.path,
+            operation: 'update',
+            requestResourceData: { assignedStaff: arrayUnion(selectedStaffId) },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+    setShowAssignDialog(false);
+    setSelectedStaffId('');
+  };
+
+  const handleUnassignStaff = (staffId: string) => {
+    if (!patientRef) return;
+    updateDoc(patientRef, {
+        assignedStaff: arrayRemove(staffId)
+    }).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: patientRef.path,
+            operation: 'update',
+            requestResourceData: { assignedStaff: arrayRemove(staffId) },
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    });
+  };
+
   const isLoading = isPatientLoading || areTasksLoading || areStaffLoading;
 
   if (isLoading) {
@@ -490,7 +520,7 @@ export default function PatientDetailPage({
   const assignedStaff = (staffData || [])
     .filter(s => (patient.assignedStaff || []).includes(s.id));
     
-  const availableStaff = (staffData || []).filter(s => s.role !== 'Admin' && s.status === 'active');
+  const availableStaff = (staffData || []).filter(s => s.status === 'active' && !(patient.assignedStaff || []).includes(s.id));
   
   type SleepStatus = 'awake' | 'asleep';
   const HOURS = Array.from({ length: 24 }, (_, i) => i);
@@ -816,7 +846,7 @@ export default function PatientDetailPage({
                         Select a staff member to assign to this patient.
                       </DialogDescription>
                     </DialogHeader>
-                    <div className="space-y-4 py-4">
+                    <div className="py-4">
                       <Select
                         value={selectedStaffId}
                         onValueChange={setSelectedStaffId}
@@ -832,21 +862,20 @@ export default function PatientDetailPage({
                           ))}
                         </SelectContent>
                       </Select>
-                      <div className="flex justify-end gap-3">
+                      </div>
+                      <DialogFooter>
+                        <DialogClose asChild>
+                          <Button variant="outline">
+                            Cancel
+                          </Button>
+                        </DialogClose>
                         <Button
-                          variant="outline"
-                          onClick={() => setShowAssignDialog(false)}
-                        >
-                          Cancel
-                        </Button>
-                        <Button
-                          onClick={() => setShowAssignDialog(false)}
+                          onClick={handleAssignStaff}
                           disabled={!selectedStaffId}
                         >
                           Assign
                         </Button>
-                      </div>
-                    </div>
+                      </DialogFooter>
                   </DialogContent>
                 </Dialog>
               )}
@@ -875,6 +904,7 @@ export default function PatientDetailPage({
                           variant="ghost"
                           size="icon"
                           className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                          onClick={() => handleUnassignStaff(s.id)}
                         >
                           <X className="h-4 w-4" />
                         </Button>
