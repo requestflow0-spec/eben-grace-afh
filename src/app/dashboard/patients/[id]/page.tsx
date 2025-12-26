@@ -82,15 +82,6 @@ import { useRole } from '@/hooks/useRole';
 import { MultiSelect } from '@/components/ui/multi-select';
 
 
-const behaviorData = Array.from({ length: 30 }, (_, i) => ({
-  day: `Day ${i + 1}`,
-  positive: Math.floor(Math.random() * 5),
-  negative: Math.floor(Math.random() * 3),
-}));
-
-type SleepStatus = 'awake' | 'asleep';
-const HOURS = Array.from({ length: 24 }, (_, i) => i);
-
 function LogBehaviorDialog() {
   const [open, setOpen] = useState(false);
   const [behavior, setBehavior] = useState<string[]>([]);
@@ -490,6 +481,9 @@ export default function PatientDetailPage({
     .filter(s => s.role === 'Nurse' || s.role === 'Doctor')
     .slice(0, 1);
   const availableStaff = staff.filter(s => s.role !== 'Admin');
+  type SleepStatus = 'awake' | 'asleep';
+  const HOURS = Array.from({ length: 24 }, (_, i) => i);
+  
 
   return (
     <div className="space-y-6">
@@ -687,40 +681,43 @@ export default function PatientDetailPage({
                       Behavior
                     </TabsTrigger>
                   </TabsList>
-                <Dialog open={isCreateRecordDialogOpen} onOpenChange={setIsCreateRecordDialogOpen}>
-                  <DialogTrigger asChild>
-                    <Button size="sm">
-                      <Plus className="mr-2 h-4 w-4" />
-                      Start Today's Record
-                    </Button>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create New Care Record</DialogTitle>
-                      <DialogDescription>
-                        Log a new event, observation, or task for {patient.name} for today.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="py-4 space-y-2">
-                        <Label htmlFor="record-description">Description</Label>
-                        <Textarea 
-                            id="record-description"
-                            placeholder="e.g., Patient seemed more energetic today and enjoyed the afternoon activity."
-                            value={newRecordDescription}
-                            onChange={(e) => setNewRecordDescription(e.target.value)}
-                            rows={4}
-                        />
-                    </div>
-                    <DialogFooter>
-                      <DialogClose asChild>
-                        <Button variant="outline">Cancel</Button>
-                      </DialogClose>
-                      <Button onClick={handleCreateTodayRecord} disabled={!newRecordDescription}>
-                        Save Record
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+                  <div className="flex gap-2">
+                    <Dialog open={isCreateRecordDialogOpen} onOpenChange={setIsCreateRecordDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button size="sm">
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Record
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Create New Care Record</DialogTitle>
+                          <DialogDescription>
+                            Log a new event, observation, or task for {patient.name} for today.
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="py-4 space-y-2">
+                            <Label htmlFor="record-description">Description</Label>
+                            <Textarea 
+                                id="record-description"
+                                placeholder="e.g., Patient seemed more energetic today and enjoyed the afternoon activity."
+                                value={newRecordDescription}
+                                onChange={(e) => setNewRecordDescription(e.target.value)}
+                                rows={4}
+                            />
+                        </div>
+                        <DialogFooter>
+                          <DialogClose asChild>
+                            <Button variant="outline">Cancel</Button>
+                          </DialogClose>
+                          <Button onClick={handleCreateTodayRecord} disabled={!newRecordDescription}>
+                            Save Record
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                    <LogBehaviorDialog />
+                  </div>
               </CardHeader>
               <CardContent>
                 <TabsContent value="care-records">
@@ -776,19 +773,11 @@ export default function PatientDetailPage({
                   <SleepLogViewer />
                 </TabsContent>
                 <TabsContent value="behavior-tracking">
-                    <div className="flex justify-end mb-4">
-                      <LogBehaviorDialog />
+                    <div className="text-center py-8 text-muted-foreground">
+                        <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                        <p className="font-semibold">No Behavior Events Logged</p>
+                        <p className="text-sm">Use the 'Log Behavior' button to add a new event.</p>
                     </div>
-                    <ResponsiveContainer width="100%" height={250}>
-                      <BarChart data={behaviorData}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="day" fontSize={12} />
-                        <YAxis fontSize={12} />
-                        <Tooltip />
-                        <Bar dataKey="positive" fill="hsl(var(--primary))" name="Positive" stackId="a" />
-                        <Bar dataKey="negative" fill="hsl(var(--destructive))" name="Negative" stackId="a" />
-                      </BarChart>
-                    </ResponsiveContainer>
                 </TabsContent>
               </CardContent>
             </Card>
@@ -932,3 +921,5 @@ export default function PatientDetailPage({
     </div>
   );
 }
+
+    
