@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -69,10 +70,15 @@ function AddStaffDialog() {
         updatedAt: serverTimestamp(),
     };
 
-    try {
-        const staffCollection = collection(firestore, 'staff');
-        await addDoc(staffCollection, staffInvitation);
-        
+    const staffCollection = collection(firestore, 'staff');
+    addDoc(staffCollection, staffInvitation).catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: staffCollection.path,
+            operation: 'create',
+            requestResourceData: staffInvitation,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+    }).then(() => {
         toast({
           title: "Invitation Sent",
           description: `${name} has been invited. They need to sign up with ${email} to activate their account.`,
@@ -80,19 +86,9 @@ function AddStaffDialog() {
         setOpen(false);
         setName('');
         setEmail('');
-    } catch (error: any) {
-        if (error instanceof FirestorePermissionError) {
-          errorEmitter.emit('permission-error', error);
-        } else {
-          toast({
-              variant: 'destructive',
-              title: 'Error Sending Invitation',
-              description: error.message || 'An unknown error occurred.',
-          });
-        }
-    } finally {
+    }).finally(() => {
         setIsSubmitting(false);
-    }
+    });
   };
 
   return (
@@ -163,12 +159,12 @@ function StaffCard({ member }: { member: Staff }) {
             <Avatar className="h-12 w-12">
               <AvatarImage src={member.avatarUrl} alt={member.name} data-ai-hint={member.avatarHint} />
               <AvatarFallback>
-                {member.name.split(' ').map(n => n[0]).join('')}
+                {member.name ? member.name.split(' ').map(n => n[0]).join('') : '?'}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <h3 className="font-semibold text-foreground truncate">
-                {member.name}
+                {member.name || 'No Name'}
               </h3>
               <p className="text-sm text-muted-foreground">{isPending ? member.email : member.role}</p>
               <div className="flex flex-wrap gap-2 mt-2">
@@ -208,9 +204,9 @@ export default function StaffPage() {
     const q = searchQuery.toLowerCase();
     return staff.filter(
       member =>
-        member.name.toLowerCase().includes(q) ||
+        (member.name && member.name.toLowerCase().includes(q)) ||
         (member.role && member.role.toLowerCase().includes(q)) ||
-        member.email.toLowerCase().includes(q)
+        (member.email && member.email.toLowerCase().includes(q))
     );
   }, [staff, searchQuery]);
 
