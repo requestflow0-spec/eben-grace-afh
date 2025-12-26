@@ -24,6 +24,7 @@ import {
   Sun,
   Save,
   AlertCircle,
+  FilePlus,
 } from 'lucide-react';
 import { format, differenceInYears, parseISO, addDays, subDays, isSameDay } from 'date-fns';
 import {
@@ -78,6 +79,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useRole } from '@/hooks/useRole';
+import { MultiSelectCreatable } from '@/components/ui/multi-select-creatable';
 
 
 const behaviorData = Array.from({ length: 30 }, (_, i) => ({
@@ -88,6 +90,138 @@ const behaviorData = Array.from({ length: 30 }, (_, i) => ({
 
 type SleepStatus = 'awake' | 'asleep';
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+function LogBehaviorDialog() {
+  const [open, setOpen] = useState(false);
+  const [behaviors, setBehaviors] = useState<string[]>([]);
+  const [activity, setActivity] = useState<string[]>([]);
+  const [setting, setSetting] = useState<string[]>([]);
+  const [antecedent, setAntecedent] = useState<string[]>([]);
+  const [response, setResponse] = useState<string[]>([]);
+  const [comment, setComment] = useState('');
+
+  const handleSave = () => {
+    // In a real app, save this data
+    console.log({
+      behaviors,
+      activity,
+      setting,
+      antecedent,
+      response,
+      comment,
+    });
+    setOpen(false);
+  };
+  
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button size="sm" variant="outline">
+          <FilePlus className="mr-2 h-4 w-4" />
+          Log Behavior
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Log New Behavior</DialogTitle>
+          <DialogDescription>
+            Record an observed behavior and the context around it.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="behaviors" className="text-right">
+              Behaviors
+            </Label>
+            <div className="col-span-3">
+              <MultiSelectCreatable
+                options={["Eloping", "Wandering", "Rummaging"]}
+                selected={behaviors}
+                onChange={setBehaviors}
+                placeholder="Select behaviors..."
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="activity" className="text-right">
+              Activity
+            </Label>
+            <div className="col-span-3">
+              <MultiSelectCreatable
+                options={["Leisure", "Community", "Dining"]}
+                selected={activity}
+                onChange={setActivity}
+                placeholder="Select activity..."
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="setting" className="text-right">
+              Setting
+            </Label>
+            <div className="col-span-3">
+              <MultiSelectCreatable
+                options={["Community", "Bedroom", "Patio", "Living Area"]}
+                selected={setting}
+                onChange={setSetting}
+                placeholder="Select setting..."
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="antecedent" className="text-right">
+              Antecedent
+            </Label>
+            <div className="col-span-3">
+              <MultiSelectCreatable
+                options={["Given instruction", "Peer interaction", "Staff Interaction"]}
+                selected={antecedent}
+                onChange={setAntecedent}
+                placeholder="Select antecedent..."
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-4 items-center gap-4">
+            <Label htmlFor="response" className="text-right">
+              Response
+            </Label>
+            <div className="col-span-3">
+              <MultiSelectCreatable
+                options={["Verbal redirection", "Blocked"]}
+                selected={response}
+                onChange={setResponse}
+                placeholder="Select staff response..."
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-4 items-start gap-4">
+            <Label htmlFor="comment" className="text-right mt-2">
+              Comment
+            </Label>
+            <Textarea
+              id="comment"
+              value={comment}
+              onChange={(e) => setComment(e.target.value)}
+              className="col-span-3"
+              placeholder="Add any additional comments..."
+            />
+          </div>
+        </div>
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button type="button" variant="secondary">
+              Cancel
+            </Button>
+          </DialogClose>
+          <Button type="button" onClick={handleSave}>
+            Save Log
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 
 function SleepLogViewer() {
     const [selectedDate, setSelectedDate] = useState(new Date());
@@ -622,6 +756,9 @@ export default function PatientDetailPage({
                   <SleepLogViewer />
                 </TabsContent>
                 <TabsContent value="behavior-tracking">
+                    <div className="flex justify-end mb-4">
+                      <LogBehaviorDialog />
+                    </div>
                     <ResponsiveContainer width="100%" height={250}>
                       <BarChart data={behaviorData}>
                         <CartesianGrid strokeDasharray="3 3" />
@@ -775,5 +912,3 @@ export default function PatientDetailPage({
     </div>
   );
 }
-
-    
