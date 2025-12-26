@@ -93,21 +93,23 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function LogBehaviorDialog() {
   const [open, setOpen] = useState(false);
-  const [behaviors, setBehaviors] = useState<string[]>([]);
-  const [activity, setActivity] = useState<string[]>([]);
-  const [setting, setSetting] = useState<string[]>([]);
-  const [antecedent, setAntecedent] = useState<string[]>([]);
-  const [response, setResponse] = useState<string[]>([]);
+  const [behavior, setBehavior] = useState('');
+  const [activity, setActivity] = useState('');
+  const [setting, setSetting] = useState('');
+  const [antecedent, setAntecedent] = useState('');
+  const [response, setResponse] = useState('');
   const [intensity, setIntensity] = useState('');
   const [comment, setComment] = useState('');
 
   const handleSave = () => {
     // In a real app, save this data
     console.log({
-      behaviors,
+      behavior,
       intensity,
+      activity,
+      setting,
       antecedent,
-      response: response,
+      response,
       comment,
     });
     setOpen(false);
@@ -138,13 +140,17 @@ function LogBehaviorDialog() {
             </div>
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                    <Label htmlFor="behaviors">Behaviour Type</Label>
-                    <MultiSelect
-                        options={["Eloping", "Wandering", "Rummaging"]}
-                        selected={behaviors}
-                        onChange={setBehaviors}
-                        placeholder="Select behaviours..."
-                    />
+                    <Label htmlFor="behavior">Behaviour Type</Label>
+                    <Select value={behavior} onValueChange={setBehavior}>
+                        <SelectTrigger id="behavior">
+                            <SelectValue placeholder="Select behavior..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="eloping">Eloping</SelectItem>
+                            <SelectItem value="wandering">Wandering</SelectItem>
+                            <SelectItem value="rummaging">Rummaging</SelectItem>
+                        </SelectContent>
+                    </Select>
                 </div>
                 <div className="space-y-2">
                     <Label htmlFor="intensity">Intensity</Label>
@@ -163,40 +169,56 @@ function LogBehaviorDialog() {
              <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                   <Label htmlFor="activity">Activity</Label>
-                  <MultiSelect
-                      options={["Leisure", "Community", "Dining"]}
-                      selected={activity}
-                      onChange={setActivity}
-                      placeholder="Select activities..."
-                  />
+                  <Select value={activity} onValueChange={setActivity}>
+                    <SelectTrigger id="activity">
+                        <SelectValue placeholder="Select activity..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="leisure">Leisure</SelectItem>
+                        <SelectItem value="community">Community</SelectItem>
+                        <SelectItem value="dining">Dining</SelectItem>
+                    </SelectContent>
+                  </Select>
               </div>
               <div className="space-y-2">
                   <Label htmlFor="setting">Setting</Label>
-                  <MultiSelect
-                      options={["Community", "Bedroom", "Patio", "Living Area"]}
-                      selected={setting}
-                      onChange={setSetting}
-                      placeholder="Select settings..."
-                  />
+                  <Select value={setting} onValueChange={setSetting}>
+                    <SelectTrigger id="setting">
+                        <SelectValue placeholder="Select setting..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="community">Community</SelectItem>
+                        <SelectItem value="bedroom">Bedroom</SelectItem>
+                        <SelectItem value="patio">Patio</SelectItem>
+                        <SelectItem value="living-area">Living Area</SelectItem>
+                    </SelectContent>
+                  </Select>
               </div>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="antecedent">Antecedent</Label>
-                 <MultiSelect
-                    options={["Given instruction", "Peer interaction", "Staff Interaction"]}
-                    selected={antecedent}
-                    onChange={setAntecedent}
-                    placeholder="What was the antecedent?"
-                />
+                 <Select value={antecedent} onValueChange={setAntecedent}>
+                    <SelectTrigger id="antecedent">
+                        <SelectValue placeholder="What was the antecedent?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="given-instruction">Given instruction</SelectItem>
+                        <SelectItem value="peer-interaction">Peer interaction</SelectItem>
+                        <SelectItem value="staff-interaction">Staff Interaction</SelectItem>
+                    </SelectContent>
+                  </Select>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="response">Intervention/Response</Label>
-                <MultiSelect
-                    options={["Verbal redirection", "Blocked"]}
-                    selected={response}
-                    onChange={setResponse}
-                    placeholder="How was this addressed?"
-                />
+                <Select value={response} onValueChange={setResponse}>
+                    <SelectTrigger id="response">
+                        <SelectValue placeholder="How was this addressed?" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="verbal-redirection">Verbal redirection</SelectItem>
+                        <SelectItem value="blocked">Blocked</SelectItem>
+                    </SelectContent>
+                  </Select>
             </div>
             <div className="space-y-2">
                 <Label htmlFor="comment">Comments</Label>
