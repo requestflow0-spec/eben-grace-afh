@@ -79,7 +79,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useRole } from '@/hooks/useRole';
-import { MultiSelectCreatable } from '@/components/ui/multi-select-creatable';
+import { MultiSelect } from '@/components/ui/multi-select';
 
 
 const behaviorData = Array.from({ length: 30 }, (_, i) => ({
@@ -137,7 +137,7 @@ function LogBehaviorDialog() {
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                     <Label htmlFor="behaviors">Behaviour Type</Label>
-                    <MultiSelectCreatable
+                    <MultiSelect
                         options={["Eloping", "Wandering", "Rummaging"]}
                         selected={behaviors}
                         onChange={setBehaviors}
@@ -160,7 +160,7 @@ function LogBehaviorDialog() {
             </div>
             <div className="space-y-2">
                 <Label htmlFor="trigger">Trigger</Label>
-                 <MultiSelectCreatable
+                 <MultiSelect
                     options={["Given instruction", "Peer interaction", "Staff Interaction"]}
                     selected={trigger}
                     onChange={setTrigger}
@@ -169,7 +169,7 @@ function LogBehaviorDialog() {
             </div>
             <div className="space-y-2">
                 <Label htmlFor="intervention">Intervention/Response</Label>
-                <MultiSelectCreatable
+                <MultiSelect
                     options={["Verbal redirection", "Blocked"]}
                     selected={intervention}
                     onChange={setIntervention}
@@ -879,8 +879,8 @@ export default function PatientDetailPage({
                     Last Updated
                   </span>
                   <span className="text-sm">
-                    {patient.updatedat
-                      ? format(new Date((patient.updatedat as any).seconds * 1000), 'MMM d, yyyy')
+                    {patient.updatedAt
+                      ? format(new Date((patient.updatedAt as any).seconds * 1000), 'MMM d, yyyy')
                       : 'N/A'}
                   </span>
                 </div>
