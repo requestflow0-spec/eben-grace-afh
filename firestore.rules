@@ -26,20 +26,29 @@ service cloud.firestore {
       return isSignedIn() && getRole(request.auth.uid) == 'staff';
     }
     
+    // Checks if a staff invitation exists for the given email.
+    function staffInvitationExists(email) {
+        return exists(/databases/$(database)/documents/staff/{staffId}
+            .where('email', '==', email)
+            .where('status', '==', 'pending'));
+    }
+
     // --- User Profile Rules ---
     match /users/{userId} {
-      // Any authenticated user can read any user profile (e.g., for display names).
+      // Any authenticated user can read any user profile (for display names, etc.).
       allow get: if isSignedIn();
       
-      // An admin can create a user profile for a new staff member.
-      allow create: if isAdmin() && request.resource.data.role == 'staff';
-
-      // A user can create their own profile.
-      // This rule allows the very first user to sign up and become an admin.
-      // It should only work if no other user documents exist.
+      // AN ADMIN SIGNUP: A user can create their own profile with an 'admin' role
+      // ONLY if no other users exist in the system yet.
       allow create: if isOwner(userId) 
                     && request.resource.data.role == 'admin'
                     && !exists(/databases/$(database)/documents/users);
+
+      // A STAFF SIGNUP: A user can create their own profile with a 'staff' role
+      // ONLY if a pending invitation exists for their email address.
+      allow create: if isOwner(userId)
+                    && request.resource.data.role == 'staff'
+                    && staffInvitationExists(request.resource.data.email);
 
       // Users can update their own profile, but cannot change their role.
       allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
@@ -76,10 +85,10 @@ service cloud.firestore {
       // All authenticated users (admin and other staff) can see the staff list.
       allow read: if isSignedIn();
       
-      // Only admins can create new staff documents.
+      // Only admins can create new staff invitation documents.
       allow create: if isAdmin();
       
-      // A user can update their own staff profile if they are a staff member.
+      // A user can update their own staff profile once they've signed up (become owner of the doc).
       // Admins can also update any staff profile.
       allow update: if (isStaff() && isOwner(staffId)) || isAdmin();
 

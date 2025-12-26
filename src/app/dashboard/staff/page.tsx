@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useMemo } from 'react';
@@ -22,69 +21,75 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plus, Search, Mail, Users, KeyRound } from 'lucide-react';
+import { Plus, Search, Mail, Users } from 'lucide-react';
 import { type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
-import { useFirestore, useCollection, useMemoFirebase, useUser, useAuth } from '@/firebase';
-import { collection } from 'firebase/firestore';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { useRole } from '@/hooks/useRole';
 import { Skeleton } from '@/components/ui/skeleton';
+import { FirestorePermissionError } from '@/firebase/errors';
+import { errorEmitter } from '@/firebase/error-emitter';
 
 function AddStaffDialog() {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const { toast } = useToast();
-  const { user } = useUser();
-  const auth = useAuth();
-
+  const firestore = useFirestore();
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user || !auth) {
+    if (!firestore) {
         toast({
             variant: 'destructive',
-            title: 'Authentication Error',
-            description: 'You must be logged in to perform this action.',
+            title: 'Error',
+            description: 'Firestore is not available.',
         });
         return;
     }
 
     setIsSubmitting(true);
 
+    const staffInvitation = {
+        name,
+        email,
+        status: 'pending',
+        // Fill in default/empty values for other required fields
+        id: '', // This will be updated upon user signup
+        role: 'Staff',
+        phone: '',
+        schedule: 'Not Set',
+        certifications: [],
+        available: false,
+        avatarUrl: `https://picsum.photos/seed/${email}/200/200`,
+        avatarHint: 'person professional',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+    };
+
     try {
-        const idToken = await user.getIdToken();
-        const response = await fetch('/api/create-staff', { 
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${idToken}`,
-            },
-            body: JSON.stringify({ name, email, password }),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'An unknown error occurred.');
-        }
-
+        const staffCollection = collection(firestore, 'staff');
+        await addDoc(staffCollection, staffInvitation);
+        
         toast({
-          title: "Staff Account Created",
-          description: `${name} can now log in with the provided credentials.`,
+          title: "Invitation Sent",
+          description: `${name} has been invited. They need to sign up with ${email} to activate their account.`,
         });
         setOpen(false);
         setName('');
         setEmail('');
-        setPassword('');
     } catch (error: any) {
-        toast({
-            variant: 'destructive',
-            title: 'Error Creating Staff',
-            description: error.message,
-        });
+        if (error instanceof FirestorePermissionError) {
+          errorEmitter.emit('permission-error', error);
+        } else {
+          toast({
+              variant: 'destructive',
+              title: 'Error Sending Invitation',
+              description: error.message || 'An unknown error occurred.',
+          });
+        }
     } finally {
         setIsSubmitting(false);
     }
@@ -100,9 +105,9 @@ function AddStaffDialog() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add New Staff Member</DialogTitle>
+          <DialogTitle>Invite New Staff Member</DialogTitle>
           <DialogDescription>
-            Create an account for a new staff member. They will be able to log in with the email and password you provide.
+            Enter the name and email for the new staff member. They will need to sign up using this email to join.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -134,29 +139,12 @@ function AddStaffDialog() {
                 />
             </div>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-             <div className="relative">
-                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                id="password"
-                name="password"
-                type="password"
-                required
-                placeholder="Must be at least 6 characters"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="pl-9"
-                minLength={6}
-                />
-            </div>
-          </div>
           <DialogFooter className="pt-2">
             <DialogClose asChild>
                 <Button type="button" variant="outline">Cancel</Button>
             </DialogClose>
-            <Button type="submit" disabled={isSubmitting || !email || !name || !password}>
-              {isSubmitting ? 'Creating...' : 'Create Account'}
+            <Button type="submit" disabled={isSubmitting || !email || !name}>
+              {isSubmitting ? 'Sending...' : 'Send Invitation'}
             </Button>
           </DialogFooter>
         </form>
