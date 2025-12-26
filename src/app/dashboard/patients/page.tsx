@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,6 +10,11 @@ import {
   collection,
   addDoc,
   serverTimestamp,
+  doc,
+  getDocs,
+  query,
+  where,
+  documentId,
 } from 'firebase/firestore';
 import { differenceInYears, parseISO } from 'date-fns';
 import {
@@ -51,11 +56,12 @@ import {
   useCollection,
   useMemoFirebase,
   useUser,
+  useDoc,
 } from '@/firebase';
 import { useRole } from '@/hooks/useRole';
 import { useToast } from '@/hooks/use-toast';
 
-import type { Patient } from '@/lib/data';
+import type { Patient, Staff } from '@/lib/data';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -320,14 +326,66 @@ function PatientCard({ patient }: { patient: Patient }) {
 export default function PatientsPage() {
   const [search, setSearch] = useState('');
   const firestore = useFirestore();
+  const { user } = useUser();
   const { role } = useRole();
 
-  const patientsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'patients');
-  }, [firestore]);
+  const [patients, setPatients] = useState<Patient[] | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
+  // For Admins: Fetch all patients
+  const adminPatientsQuery = useMemoFirebase(() => {
+    if (!firestore || role !== 'admin') return null;
+    return collection(firestore, 'patients');
+  }, [firestore, role]);
+
+  const { data: adminPatients, isLoading: isAdminPatientsLoading } = useCollection<Patient>(adminPatientsQuery);
+
+  // For Staff: Fetch their profile to get assigned patient IDs
+  const staffProfileRef = useMemoFirebase(() => {
+    if (!firestore || !user || role !== 'staff') return null;
+    return doc(firestore, 'staff', user.uid);
+  }, [firestore, user, role]);
+
+  const { data: staffProfile, isLoading: isStaffProfileLoading } = useDoc<Staff>(staffProfileRef);
+
+  // For Staff: Fetch assigned patients based on IDs
+  useEffect(() => {
+    if (role === 'admin') {
+        setPatients(adminPatients);
+        setIsLoading(isAdminPatientsLoading);
+        return;
+    }
+
+    if (role === 'staff') {
+      if (isStaffProfileLoading || !firestore) return;
+      
+      const assignedIds = staffProfile?.assignedPatients;
+
+      if (Array.isArray(assignedIds) && assignedIds.length > 0) {
+        const fetchAssignedPatients = async () => {
+          setIsLoading(true);
+          try {
+            // Firestore 'in' query is limited to 30 items.
+            // For larger lists, you'd need to fetch in batches.
+            const q = query(collection(firestore, 'patients'), where(documentId(), 'in', assignedIds));
+            const snapshot = await getDocs(q);
+            const assignedPatientsData = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Patient));
+            setPatients(assignedPatientsData);
+          } catch (error) {
+            console.error("Error fetching assigned patients:", error);
+            setPatients([]);
+          } finally {
+            setIsLoading(false);
+          }
+        };
+        fetchAssignedPatients();
+      } else {
+        // Staff has no assigned patients
+        setPatients([]);
+        setIsLoading(false);
+      }
+    }
+  }, [role, adminPatients, isAdminPatientsLoading, staffProfile, isStaffProfileLoading, firestore]);
 
   const filtered = useMemo(() => {
     if (!patients) return [];
@@ -376,7 +434,7 @@ export default function PatientsPage() {
             <p className="text-muted-foreground text-center max-w-sm">
               {search
                 ? 'No patients match your search criteria.'
-                : role === 'admin' ? 'Add your first patient to get started.' : 'No patients have been added to the system yet.'}
+                : role === 'admin' ? 'Add your first patient to get started.' : 'You have not been assigned to any patients yet.'}
             </p>
           </CardContent>
         </Card>
@@ -384,3 +442,5 @@ export default function PatientsPage() {
     </div>
   );
 }
+
+    

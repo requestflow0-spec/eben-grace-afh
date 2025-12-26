@@ -47,7 +47,8 @@
         "role": { "type": "string", "description": "The role of the staff member (e.g., nurse, doctor)." },
         "schedule": { "type": "string", "description": "The schedule of the staff member." },
         "certifications": { "type": "array", "items": { "type": "string" }, "description": "List of certifications held by the staff member." },
-        "status": { "type": "string", "enum": ["pending", "active"], "description": "The status of the staff account."}
+        "status": { "type": "string", "enum": ["pending", "active"], "description": "The status of the staff account."},
+        "assignedPatients": { "type": "array", "items": { "type": "string" }, "description": "List of patient IDs assigned to this staff member." }
       },
       "required": ["id", "name", "role", "email", "status"]
     },
@@ -123,3 +124,5 @@
     ]
   }
 }
+
+    

@@ -25,6 +25,14 @@ service cloud.firestore {
     function isStaff() {
       return isSignedIn() && getRole(request.auth.uid) == 'staff';
     }
+
+    function getStaffProfile(uid) {
+      return get(/databases/$(database)/documents/staff/$(uid)).data;
+    }
+    
+    function isAssignedToPatient(patientId) {
+        return isSignedIn() && patientId in getStaffProfile(request.auth.uid).assignedPatients;
+    }
     
     // --- User Profile Rules ---
     match /users/{userId} {
@@ -37,36 +45,22 @@ service cloud.firestore {
                     && request.resource.data.role == 'admin'
                     && !exists(/databases/$(database)/documents/users);
 
-      // Staff profiles are created by the admin or a server process, not by the user directly on signup.
-      // So, no general 'staff' create rule is needed here.
-
-      // Users can update their own profile, but cannot change their role.
-      allow update: if isOwner(userId) && request.resource.data.role == resource.data.role;
-      
+      // Staff profiles are created via an API route, not directly by users signing up.
       // Admins can update any profile (e.g., to change roles or display names).
-      allow update: if isAdmin();
+      allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
     }
 
     // --- Patient Rules ---
     match /patients/{patientId} {
-      // Admins and staff can read patient data.
-      allow read: if isAdmin() || isStaff();
-      // Only admins can create, update, or delete patient records.
-      allow write: if isAdmin();
+      // Admins and assigned staff can read patient data.
+      allow read: if isAdmin() || isAssignedToPatient(patientId);
+      // Only admins and assigned staff can write to a patient's records.
+      allow write: if isAdmin() || isAssignedToPatient(patientId);
 
       // --- Subcollection Rules for Patients ---
-      match /dailyRecords/{recordId} {
-        // Admins and staff can read records.
-        allow read: if isAdmin() || isStaff();
-        // Admins and staff can create and update records.
-        allow create, update: if isAdmin() || isStaff();
-        // Only admins can delete records.
-        allow delete: if isAdmin();
-      }
-
-      match /sleepLogs/{sleepLogId} {
-        // Admins and staff can manage sleep logs.
-        allow read, write: if isAdmin() || isStaff();
+      match /{allSubcollections=**} {
+        // Inherit parent permissions for all subcollections.
+        allow read, write: if isAdmin() || isAssignedToPatient(patientId);
       }
     }
 
@@ -75,15 +69,16 @@ service cloud.firestore {
       // All authenticated users (admin and other staff) can see the staff list.
       allow read: if isSignedIn();
       
-      // Only admins can create new staff invitation documents.
-      allow create: if isAdmin();
+      // Only admins can create new staff invitation documents and update profiles.
+      allow create, update: if isAdmin();
       
       // A user can update their own staff profile once they've signed up (become owner of the doc).
-      // Admins can also update any staff profile.
-      allow update: if (isStaff() && isOwner(staffId)) || isAdmin();
+      allow update: if isStaff() && isOwner(staffId);
 
       // Only admins can delete staff profiles.
       allow delete: if isAdmin();
     }
   }
 }
+
+    

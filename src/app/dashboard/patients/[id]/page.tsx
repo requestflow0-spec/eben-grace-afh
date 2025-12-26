@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, use } from 'react';
+import { useState, use, useMemo } from 'react';
 import Link from 'next/link';
 import {
   Activity,
@@ -71,12 +71,13 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
-import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { useFirestore, useDoc, useCollection, useMemoFirebase, useUser } from '@/firebase';
 import { doc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc } from 'firebase/firestore';
 import type { Patient } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
+import { useRole } from '@/hooks/useRole';
 
 
 const behaviorData = Array.from({ length: 30 }, (_, i) => ({
@@ -251,6 +252,7 @@ export default function PatientDetailPage({
 }) {
   const { id } = use(params);
   const firestore = useFirestore();
+  const { role } = useRole();
 
   const patientRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
@@ -271,6 +273,8 @@ export default function PatientDetailPage({
   const [selectedStaffId, setSelectedStaffId] = useState<string>('');
   const [isCreateRecordDialogOpen, setIsCreateRecordDialogOpen] = useState(false);
   const [newRecordDescription, setNewRecordDescription] = useState('');
+
+  const canEdit = role === 'admin';
 
   const handleCreateTodayRecord = () => {
     if (!firestore || !id || !newRecordDescription) return;
@@ -316,7 +320,7 @@ export default function PatientDetailPage({
       <div className="text-center py-12">
         <h2 className="text-xl font-semibold mb-2">Patient not found</h2>
         <p className="text-muted-foreground mb-4">
-          The patient you're looking for doesn't exist.
+          The patient you're looking for doesn't exist or you don't have permission to view them.
         </p>
         <Button asChild>
           <Link href="/dashboard/patients">Back to Patients</Link>
@@ -349,10 +353,12 @@ export default function PatientDetailPage({
             Patient profile and care records
           </p>
         </div>
-        <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
-          <Edit className="mr-2 h-4 w-4" />
-          {isEditing ? 'Cancel' : 'Edit'}
-        </Button>
+        {canEdit && (
+          <Button variant="outline" onClick={() => setIsEditing(!isEditing)}>
+            <Edit className="mr-2 h-4 w-4" />
+            {isEditing ? 'Cancel' : 'Edit'}
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -636,55 +642,57 @@ export default function PatientDetailPage({
           <Card>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-base">Assigned Staff</CardTitle>
-              <Dialog
-                open={showAssignDialog}
-                onOpenChange={setShowAssignDialog}
-              >
-                <DialogTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <UserPlus className="h-4 w-4" />
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Assign Staff Member</DialogTitle>
-                    <DialogDescription>
-                      Select a staff member to assign to this patient.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <Select
-                      value={selectedStaffId}
-                      onValueChange={setSelectedStaffId}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select staff member" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableStaff?.map(staff => (
-                          <SelectItem key={staff.id} value={staff.id}>
-                            {staff.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <div className="flex justify-end gap-3">
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowAssignDialog(false)}
+              {canEdit && (
+                <Dialog
+                  open={showAssignDialog}
+                  onOpenChange={setShowAssignDialog}
+                >
+                  <DialogTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <UserPlus className="h-4 w-4" />
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Assign Staff Member</DialogTitle>
+                      <DialogDescription>
+                        Select a staff member to assign to this patient.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <Select
+                        value={selectedStaffId}
+                        onValueChange={setSelectedStaffId}
                       >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={() => setShowAssignDialog(false)}
-                        disabled={!selectedStaffId}
-                      >
-                        Assign
-                      </Button>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select staff member" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableStaff?.map(staff => (
+                            <SelectItem key={staff.id} value={staff.id}>
+                              {staff.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <div className="flex justify-end gap-3">
+                        <Button
+                          variant="outline"
+                          onClick={() => setShowAssignDialog(false)}
+                        >
+                          Cancel
+                        </Button>
+                        <Button
+                          onClick={() => setShowAssignDialog(false)}
+                          disabled={!selectedStaffId}
+                        >
+                          Assign
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+                  </DialogContent>
+                </Dialog>
+              )}
             </CardHeader>
             <CardContent>
               {assignedStaff.length > 0 ? (
@@ -705,13 +713,15 @@ export default function PatientDetailPage({
                         </Avatar>
                         <span className="text-sm font-medium">{s.name}</span>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -765,9 +775,5 @@ export default function PatientDetailPage({
     </div>
   );
 }
-
-    
-
-    
 
     

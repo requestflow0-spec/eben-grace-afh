@@ -39,6 +39,53 @@ export default function SignupPage() {
   // Let's assume for now the first user is an admin.
   // This logic is flawed, a better approach is needed. For now, let's focus on staff signup.
 
+  // const handleSignUp = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+    
+  //   if (password !== repeatPassword) {
+  //     toast({
+  //       variant: 'destructive',
+  //       title: 'Sign-up Failed',
+  //       description: 'Passwords do not match.',
+  //     });
+  //     return;
+  //   }
+
+  //   setIsLoading(true);
+
+  //   try {
+  //       const response = await fetch('/api/signup-staff', {
+  //           method: 'POST',
+  //           headers: { 'Content-Type': 'application/json' },
+  //           body: JSON.stringify({ name, email, password }),
+  //       });
+
+  //       const result = await response.json();
+
+  //       if (!response.ok) {
+  //           throw new Error(result.error || 'An unknown error occurred.');
+  //       }
+
+  //       // After successful server-side creation, log the user in on the client
+  //       if (auth) {
+  //           await signInWithEmailAndPassword(auth, email, password);
+  //       }
+
+  //       toast({ title: 'Account created successfully!' });
+  //       router.push('/dashboard');
+
+  //   } catch (error: any) {
+  //     console.error('Sign-Up Error:', error);
+  //     toast({
+  //       variant: 'destructive',
+  //       title: 'Sign-up Failed',
+  //       description: error.message || 'Could not create account. Please try again.',
+  //     });
+  //   } finally {
+  //     setIsLoading(false);
+  //   }
+  // };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -50,30 +97,38 @@ export default function SignupPage() {
       });
       return;
     }
-
+  
     setIsLoading(true);
-
+  
     try {
-        const response = await fetch('/api/signup-staff', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name, email, password }),
-        });
-
-        const result = await response.json();
-
-        if (!response.ok) {
-            throw new Error(result.error || 'An unknown error occurred.');
-        }
-
-        // After successful server-side creation, log the user in on the client
-        if (auth) {
-            await signInWithEmailAndPassword(auth, email, password);
-        }
-
-        toast({ title: 'Account created successfully!' });
-        router.push('/dashboard');
-
+      const response = await fetch('/api/signup-staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password }),
+      });
+  
+      // Check content type before parsing
+      const contentType = response.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        const text = await response.text();
+        console.error('Non-JSON response:', text.substring(0, 500));
+        throw new Error('Server error. Please check the console and try again.');
+      }
+  
+      const result = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(result.error || 'An unknown error occurred.');
+      }
+  
+      // After successful server-side creation, log the user in on the client
+      if (auth) {
+        await signInWithEmailAndPassword(auth, email, password);
+      }
+  
+      toast({ title: 'Account created successfully!' });
+      router.push('/dashboard');
+  
     } catch (error: any) {
       console.error('Sign-Up Error:', error);
       toast({

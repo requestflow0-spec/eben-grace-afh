@@ -1,7 +1,7 @@
 
 'use client';
 
-import { use, useState } from 'react';
+import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -44,8 +44,11 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFirestore, useDoc, useMemoFirebase, useCollection } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc, collection, updateDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
 import type { Staff, Patient } from '@/lib/data';
+import { useRole } from '@/hooks/useRole';
+import { errorEmitter } from '@/firebase/error-emitter';
+import { FirestorePermissionError } from '@/firebase/errors';
 
 const timeOptions = Array.from({ length: 24 * 2 }, (_, i) => {
   const hour = Math.floor(i / 2);
@@ -195,6 +198,7 @@ export default function StaffDetailPage({
 }) {
   const { id } = use(params);
   const firestore = useFirestore();
+  const { role } = useRole();
 
   const staffDocRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
@@ -210,34 +214,49 @@ export default function StaffDetailPage({
 
   const { data: allPatients, isLoading: arePatientsLoading } = useCollection<Patient>(patientsQuery);
   
-  // Mock state for assigned patients. In a real app, this would be a subcollection or array in the staff doc.
   const [assignedPatients, setAssignedPatients] = useState<Patient[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string>('');
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
 
-  // This effect simulates fetching assigned patients when staff member data is loaded.
-  // In a real app, you might fetch a subcollection or use an array of patient IDs from the staff document.
-  useState(() => {
-    if (member && allPatients) {
-      // This is a placeholder logic.
-      // e.g., if member.assignedPatients is an array of IDs:
-      // setAssignedPatients(allPatients.filter(p => member.assignedPatients.includes(p.id)));
-       setAssignedPatients(allPatients.slice(0,1)); // Mock: assign first patient
+  useEffect(() => {
+    if (member && member.assignedPatients && allPatients) {
+      const assigned = allPatients.filter(p => member.assignedPatients.includes(p.id));
+      setAssignedPatients(assigned);
     }
   }, [member, allPatients]);
 
+  const canEdit = role === 'admin';
+
   const handleAssignPatient = () => {
-    if (!allPatients) return;
-    const patientToAdd = allPatients.find(p => p.id === selectedPatientId);
-    if (patientToAdd && !assignedPatients.some(p => p.id === patientToAdd.id)) {
-      setAssignedPatients([...assignedPatients, patientToAdd]);
-    }
+    if (!firestore || !staffDocRef || !selectedPatientId) return;
+
+    updateDoc(staffDocRef, {
+      assignedPatients: arrayUnion(selectedPatientId)
+    }).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: staffDocRef.path,
+        operation: 'update',
+        requestResourceData: { assignedPatients: arrayUnion(selectedPatientId) },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
+
     setSelectedPatientId('');
     setIsAssignDialogOpen(false);
   };
 
   const handleRemovePatient = (patientId: string) => {
-    setAssignedPatients(assignedPatients.filter(p => p.id !== patientId));
+    if (!firestore || !staffDocRef) return;
+    updateDoc(staffDocRef, {
+      assignedPatients: arrayRemove(patientId)
+    }).catch(async (serverError) => {
+      const permissionError = new FirestorePermissionError({
+        path: staffDocRef.path,
+        operation: 'update',
+        requestResourceData: { assignedPatients: arrayRemove(patientId) },
+      });
+      errorEmitter.emit('permission-error', permissionError);
+    });
   };
   
   if (isStaffLoading || arePatientsLoading) {
@@ -332,7 +351,7 @@ export default function StaffDetailPage({
             </div>
             <Dialog>
               <DialogTrigger asChild>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" disabled={!canEdit}>
                   <Edit className="mr-2 h-4 w-4" />
                   Edit
                 </Button>
@@ -387,53 +406,55 @@ export default function StaffDetailPage({
               Patients currently assigned to {member.name}.
             </CardDescription>
           </div>
-          <Dialog
-            open={isAssignDialogOpen}
-            onOpenChange={setIsAssignDialogOpen}
-          >
-            <DialogTrigger asChild>
-              <Button size="sm">
-                <Plus className="mr-2 h-4 w-4" />
-                Assign Patient
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Assign Patient</DialogTitle>
-                <DialogDescription>
-                  Select a patient to assign to {member.name}.
-                </DialogDescription>
-              </DialogHeader>
-              <div className="py-4 space-y-4">
-                <Select
-                  value={selectedPatientId}
-                  onValueChange={setSelectedPatientId}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a patient to assign" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {unassignedPatients.map(p => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => setIsAssignDialogOpen(false)}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleAssignPatient} disabled={!selectedPatientId}>
+          {canEdit && (
+            <Dialog
+              open={isAssignDialogOpen}
+              onOpenChange={setIsAssignDialogOpen}
+            >
+              <DialogTrigger asChild>
+                <Button size="sm">
+                  <Plus className="mr-2 h-4 w-4" />
                   Assign Patient
                 </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Assign Patient</DialogTitle>
+                  <DialogDescription>
+                    Select a patient to assign to {member.name}.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="py-4 space-y-4">
+                  <Select
+                    value={selectedPatientId}
+                    onValueChange={setSelectedPatientId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a patient to assign" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unassignedPatients.map(p => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsAssignDialogOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={handleAssignPatient} disabled={!selectedPatientId}>
+                    Assign Patient
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </CardHeader>
         <CardContent>
           {assignedPatients.length > 0 ? (
@@ -461,14 +482,16 @@ export default function StaffDetailPage({
                       </p>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
-                    onClick={() => handleRemovePatient(patient.id)}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  {canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                      onClick={() => handleRemovePatient(patient.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               ))}
             </div>
@@ -483,3 +506,5 @@ export default function StaffDetailPage({
     </div>
   );
 }
+
+    
