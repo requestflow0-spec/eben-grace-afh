@@ -94,20 +94,18 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 function LogBehaviorDialog() {
   const [open, setOpen] = useState(false);
   const [behaviors, setBehaviors] = useState<string[]>([]);
-  const [activity, setActivity] = useState<string[]>([]);
-  const [setting, setSetting] = useState<string[]>([]);
-  const [antecedent, setAntecedent] = useState<string[]>([]);
-  const [response, setResponse] = useState<string[]>([]);
+  const [intensity, setIntensity] = useState('');
+  const [trigger, setTrigger] = useState<string[]>([]);
+  const [intervention, setIntervention] = useState<string[]>([]);
   const [comment, setComment] = useState('');
 
   const handleSave = () => {
     // In a real app, save this data
     console.log({
       behaviors,
-      activity,
-      setting,
-      antecedent,
-      response,
+      intensity,
+      trigger,
+      intervention,
       comment,
     });
     setOpen(false);
@@ -123,76 +121,80 @@ function LogBehaviorDialog() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Log New Behavior</DialogTitle>
-          <DialogDescription>
-            Record an observed behavior and the context around it.
-          </DialogDescription>
+          <DialogTitle>Add Behaviour Event</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto pr-4">
-            <div className="space-y-2">
-                <Label htmlFor="behaviors">Behaviors</Label>
-                <MultiSelectCreatable
-                    options={["Eloping", "Wandering", "Rummaging"]}
-                    selected={behaviors}
-                    onChange={setBehaviors}
-                    placeholder="Select or create behaviors..."
-                />
+        <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="event-date">Event Date</Label>
+                    <Input id="event-date" type="date" defaultValue={format(new Date(), 'yyyy-MM-dd')} />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="event-time">Event Time</Label>
+                    <Input id="event-time" type="time" defaultValue={format(new Date(), 'HH:mm')} />
+                </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                    <Label htmlFor="behaviors">Behaviour Type</Label>
+                    <MultiSelectCreatable
+                        options={["Eloping", "Wandering", "Rummaging"]}
+                        selected={behaviors}
+                        onChange={setBehaviors}
+                        placeholder="Select behaviours..."
+                    />
+                </div>
+                <div className="space-y-2">
+                    <Label htmlFor="intensity">Intensity</Label>
+                    <Select value={intensity} onValueChange={setIntensity}>
+                        <SelectTrigger id="intensity">
+                            <SelectValue placeholder="Select intensity" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
             </div>
             <div className="space-y-2">
-                <Label htmlFor="activity">Activity</Label>
-                <MultiSelectCreatable
-                    options={["Leisure", "Community", "Dining"]}
-                    selected={activity}
-                    onChange={setActivity}
-                    placeholder="Select or create an activity..."
-                />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="setting">Setting</Label>
-                <MultiSelectCreatable
-                    options={["Community", "Bedroom", "Patio", "Living Area"]}
-                    selected={setting}
-                    onChange={setSetting}
-                    placeholder="Select or create a setting..."
-                />
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="antecedent">Antecedent</Label>
-                <MultiSelectCreatable
+                <Label htmlFor="trigger">Trigger</Label>
+                 <MultiSelectCreatable
                     options={["Given instruction", "Peer interaction", "Staff Interaction"]}
-                    selected={antecedent}
-                    onChange={setAntecedent}
-                    placeholder="Select or create an antecedent..."
+                    selected={trigger}
+                    onChange={setTrigger}
+                    placeholder="What triggered this behaviour?"
                 />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="response">Response</Label>
+                <Label htmlFor="intervention">Intervention/Response</Label>
                 <MultiSelectCreatable
                     options={["Verbal redirection", "Blocked"]}
-                    selected={response}
-                    onChange={setResponse}
-                    placeholder="Select or create a staff response..."
+                    selected={intervention}
+                    onChange={setIntervention}
+                    placeholder="How was this addressed?"
                 />
             </div>
             <div className="space-y-2">
-                <Label htmlFor="comment">Comment</Label>
+                <Label htmlFor="comment">Comments</Label>
                 <Textarea
                     id="comment"
                     value={comment}
                     onChange={(e) => setComment(e.target.value)}
-                    placeholder="Add any additional comments..."
+                    placeholder="Additional observations..."
                     rows={3}
                 />
             </div>
         </div>
         <DialogFooter>
           <DialogClose asChild>
-            <Button type="button" variant="secondary">
+            <Button type="button" variant="outline">
               Cancel
             </Button>
           </DialogClose>
           <Button type="button" onClick={handleSave}>
-            Save Log
+            Save Event
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -877,8 +879,8 @@ export default function PatientDetailPage({
                     Last Updated
                   </span>
                   <span className="text-sm">
-                    {patient.updatedAt
-                      ? format(new Date((patient.updatedAt as any).seconds * 1000), 'MMM d, yyyy')
+                    {patient.updatedat
+                      ? format(new Date((patient.updatedat as any).seconds * 1000), 'MMM d, yyyy')
                       : 'N/A'}
                   </span>
                 </div>
