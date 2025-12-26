@@ -91,33 +91,33 @@ export function MultiSelect({
         className="w-[--radix-popover-trigger-width] p-0 z-50"
       >
 
-        <Command>
-          <CommandList>
-            <CommandEmpty>No results found.</CommandEmpty>
-
-            <CommandGroup>
-              {options.map((option) => {
-                const isSelected = selected.includes(option);
-
-                return (
-                  <CommandItem
-                    key={option}
-                    onSelect={() => handleSelect(option)}
-                    className="flex items-center cursor-pointer"
-                  >
-                     <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        isSelected ? "opacity-100" : "opacity-0"
-                      )}
-                    />
-                    <span>{option}</span>
-                  </CommandItem>
-                );
-              })}
-            </CommandGroup>
-          </CommandList>
-        </Command>
+        <div className="p-1">
+          {options.length > 0 ? (
+            options.map((option) => {
+              const isSelected = selected.includes(option);
+              return (
+                <Button
+                  variant="ghost"
+                  key={option}
+                  onClick={() => handleSelect(option)}
+                  className="w-full justify-start h-8 px-2"
+                >
+                   <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      isSelected ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span>{option}</span>
+                </Button>
+              );
+            })
+          ) : (
+            <div className="text-center text-sm text-muted-foreground py-2">
+              No results found.
+            </div>
+          )}
+        </div>
       </PopoverContent>
     </Popover>
   );
