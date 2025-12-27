@@ -1,7 +1,7 @@
 
 'use client';
 
-import { use, useState } from 'react';
+import { use, useMemo, useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -9,6 +9,7 @@ import {
   Phone,
   Calendar as CalendarIcon,
   Edit,
+  Users,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -39,9 +40,9 @@ import {
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
-import { useFirestore, useDoc, useMemoFirebase } from '@/firebase';
-import { doc } from 'firebase/firestore';
-import type { Staff } from '@/lib/data';
+import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
+import { doc, collection } from 'firebase/firestore';
+import type { Staff, Patient } from '@/lib/data';
 import { useRole } from '@/hooks/useRole';
 import DashboardLayout from '../../dashboard/layout';
 
@@ -55,7 +56,6 @@ const timeOptions = Array.from({ length: 24 * 2 }, (_, i) => {
 const daysOfWeek = [
   'Monday',
   'Tuesday',
-
   'Wednesday',
   'Thursday',
   'Friday',
@@ -152,7 +152,7 @@ function StaffDetailSkeleton() {
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
             <Skeleton className="h-6 w-1/2" />
@@ -169,6 +169,15 @@ function StaffDetailSkeleton() {
           </CardHeader>
           <CardContent>
             <Skeleton className="h-6 w-2/3" />
+          </CardContent>
+        </Card>
+         <Card>
+          <CardHeader>
+            <Skeleton className="h-6 w-1/2" />
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Skeleton className="h-6 w-full" />
+            <Skeleton className="h-6 w-full" />
           </CardContent>
         </Card>
       </div>
@@ -193,9 +202,22 @@ function StaffDetailPageContent({
 
   const { data: member, isLoading: isStaffLoading } = useDoc<Staff>(staffDocRef);
 
+  const patientsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'patients');
+  }, [firestore]);
+  
+  const { data: patients, isLoading: arePatientsLoading } = useCollection<Patient>(patientsQuery);
+
+  const assignedPatients = useMemo(() => {
+    if (!patients || !id) return [];
+    return patients.filter(p => p.assignedStaff?.includes(id));
+  }, [patients, id]);
+
+
   const canEdit = role === 'admin';
   
-  if (isStaffLoading) {
+  if (isStaffLoading || arePatientsLoading) {
     return <StaffDetailSkeleton />;
   }
 
@@ -272,13 +294,13 @@ function StaffDetailPageContent({
         </CardContent>
       </Card>
 
-      <div className="grid md:grid-cols-2 gap-6">
+      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader className="flex-row items-center justify-between">
             <div>
               <CardTitle>Weekly Schedule</CardTitle>
               <CardDescription>
-                Working days and hours for this staff member.
+                Working days and hours.
               </CardDescription>
             </div>
             <Dialog>
@@ -328,6 +350,39 @@ function StaffDetailPageContent({
             ))}
           </CardContent>
         </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Assigned Patients</CardTitle>
+            <CardDescription>
+              Patients this staff member is assigned to.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {assignedPatients.length > 0 ? (
+              <div className="space-y-2">
+                {assignedPatients.map(patient => (
+                  <Link key={patient.id} href={`/patients/${patient.id}`}>
+                    <div className="flex items-center justify-between p-2 rounded-md hover:bg-muted/50">
+                        <div className="flex items-center gap-2">
+                            <Avatar className="h-8 w-8">
+                                <AvatarImage src={patient.avatarUrl} alt={patient.name} data-ai-hint={patient.avatarHint} />
+                                <AvatarFallback>{patient.name.split(' ').map(n => n[0]).join('')}</AvatarFallback>
+                            </Avatar>
+                            <span className="font-medium text-sm">{patient.name}</span>
+                        </div>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center text-sm text-muted-foreground py-4">
+                <Users className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                No patients assigned.
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -344,19 +399,5 @@ export default function StaffDetailPage({
     </DashboardLayout>
   )
 }
-
-// export default async function StaffDetailPage({
-//   params,
-// }: {
-//   params: Promise<{ id: string }>;
-// }) {
-//   const resolvedParams = await params;
-  
-//   return (
-//     <DashboardLayout>
-//       <StaffDetailPageContent params={resolvedParams} />
-//     </DashboardLayout>
-//   );
-// }
 
     
