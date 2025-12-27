@@ -26,6 +26,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { differenceInYears, parseISO, format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
 
 export default function ReportsPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -275,3 +276,5 @@ export default function ReportsPage() {
     </div>
   );
 }
+
+    
