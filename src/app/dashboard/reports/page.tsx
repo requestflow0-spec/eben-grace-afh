@@ -37,87 +37,46 @@ import { Input } from '@/components/ui/input';
 
 type PrintOption = "all" | "care" | "sleep" | "behavior";
 type SleepStatus = 'awake' | 'asleep';
+type TimelineEvent = 
+    | { type: 'sleep'; start: number; end: number }
+    | { type: 'awake'; duration: number };
+
 
 const formatHour = (hour: number) => {
     const date = new Date();
     date.setHours(hour, 0, 0, 0);
     return format(date, 'ha');
 };
-  
-const getSleepSummary = (hours: SleepStatus[]) => {
-    const sleepPeriods: { start: number; end: number; awakeIntervals: number[] }[] = [];
-    let currentPeriod: { start: number; awakeIntervals: number[] } | null = null;
 
-    // Iterate from hour 0 to 23 to find all sleep blocks
-    for (let i = 0; i < 24; i++) {
-        if (hours[i] === 'asleep') {
-            if (currentPeriod === null) {
-                currentPeriod = { start: i, awakeIntervals: [] };
-            }
-        } else { // Awake
-            if (currentPeriod !== null) {
-                sleepPeriods.push({ ...currentPeriod, end: i - 1 });
-                currentPeriod = null;
-            }
+const getSleepTimeline = (hours: SleepStatus[]) => {
+    const timeline: TimelineEvent[] = [];
+    let i = 0;
+
+    while (i < 24) {
+        const currentStatus = hours[i];
+        let j = i;
+        while (j < 24 && hours[j] === currentStatus) {
+            j++;
         }
-    }
-    // If the loop ends and we are in a sleep period (e.g. asleep at hour 23)
-    if (currentPeriod !== null) {
-        sleepPeriods.push({ ...currentPeriod, end: 23 });
-    }
 
-    // Handle wrap-around periods (e.g., starts at 10 PM, ends at 6 AM)
-    if (sleepPeriods.length > 1) {
-        const lastPeriod = sleepPeriods[sleepPeriods.length - 1];
-        const firstPeriod = sleepPeriods[0];
-        // If last period ends at 23 and first starts at 0, merge them
-        if (lastPeriod.end === 23 && firstPeriod.start === 0) {
-            lastPeriod.end = firstPeriod.end; // New end time is from the first period
-            sleepPeriods.shift(); // Remove the now-merged first period
-        }
-    }
-
-    // Now, for each consolidated sleep period, find the awake intervals within it.
-    const detailedPeriods = sleepPeriods.map(period => {
-        const awakeIntervals: number[] = [];
-        let start = period.start;
-        let end = period.end;
-        
-        // Handle wrapped period for iteration
-        if (end < start) { 
-            // from start to 23
-            for(let i = start; i <= 23; i++) {
-                if (hours[i] === 'awake') awakeIntervals.push(i);
-            }
-             // from 0 to end
-            for(let i = 0; i <= end; i++) {
-                if (hours[i] === 'awake') awakeIntervals.push(i);
-            }
+        if (currentStatus === 'asleep') {
+            timeline.push({ type: 'sleep', start: i, end: j - 1 });
         } else {
-            // Normal period
-            for (let i = start; i <= end; i++) {
-                if (hours[i] === 'awake') {
-                    awakeIntervals.push(i);
-                }
+            // Only add awake events if they are between sleep events
+            if (timeline.length > 0) {
+                 timeline.push({ type: 'awake', duration: j - i });
             }
         }
-        return { ...period, awakeIntervals };
-    });
-
-    return detailedPeriods.map((period, index) => {
-        const totalHoursSlept = hours.filter(h => h === 'asleep').length;
-        const awakeTimes = period.awakeIntervals.map(formatHour).join(', ');
-        const sleepEndHour = (period.end + 1) % 24;
-
-        return {
-            key: `period-${index}`,
-            sleepPeriod: `${formatHour(period.start)} - ${formatHour(sleepEndHour)}`,
-            awakeTimes: awakeTimes || 'None',
-            totalHoursSlept: `${totalHoursSlept} hour(s)`
-        }
-    });
+        i = j;
+    }
+    // If the last event is an awake event, it's not between two sleep events, so remove it.
+    if(timeline.length > 0 && timeline[timeline.length - 1].type === 'awake') {
+        timeline.pop();
+    }
+    
+    return timeline;
 };
-
+  
 export default function ReportsPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [printOption, setPrintOption] = useState<PrintOption>("all");
@@ -429,21 +388,37 @@ export default function ReportsPage() {
                    {filteredData.sleepLogs.length > 0 ? (
                         <div className="space-y-4">
                             {filteredData.sleepLogs.map(log => {
-                                const sleepSummaries = getSleepSummary(log.hours);
+                                const timeline = getSleepTimeline(log.hours);
+                                const totalSleepHours = log.hours.filter(h => h === 'asleep').length;
+
                                 return (
                                     <div key={log.id}>
                                         <p className="font-semibold">{format(new Date(log.log_date), 'EEEE, MMMM d, yyyy')}</p>
-                                        {sleepSummaries.length > 0 ? (
-                                            sleepSummaries.map(summary => (
-                                                <div key={summary.key} className="text-sm mt-1">
-                                                    <p><strong>Sleep Period:</strong> {summary.sleepPeriod}</p>
-                                                    <p><strong>Awake Times:</strong> {summary.awakeTimes}</p>
-                                                    <p><strong>Total Sleep:</strong> {summary.totalHoursSlept}</p>
-                                                </div>
-                                            ))
+                                        
+                                        {timeline.length > 0 ? (
+                                            <div className="text-sm mt-1">
+                                                {timeline.map((event, index) => {
+                                                    if (event.type === 'sleep') {
+                                                        const sleepEndHour = (event.end + 1);
+                                                        return (
+                                                            <span key={`event-${index}`}>
+                                                                Sleep Period: {formatHour(event.start)} - {formatHour(sleepEndHour)}
+                                                            </span>
+                                                        );
+                                                    } else { // event.type === 'awake'
+                                                        return (
+                                                            <span key={`event-${index}`} className='font-semibold text-muted-foreground italic mx-2'>
+                                                                (Awake for {event.duration} hour{event.duration > 1 ? 's' : ''})
+                                                            </span>
+                                                        );
+                                                    }
+                                                })}
+                                                <p className="mt-2"><strong>Total Sleep:</strong> {totalSleepHours} hour{totalSleepHours === 1 ? '' : 's'}</p>
+                                            </div>
                                         ) : (
                                             <p className="text-sm">No sleep recorded for this day.</p>
                                         )}
+
                                         {log.notes && <p className="text-muted-foreground text-sm mt-1">Notes: {log.notes}</p>}
                                         <Separator className="pt-2" />
                                     </div>
@@ -503,3 +478,6 @@ export default function ReportsPage() {
 
     
 
+
+
+    
