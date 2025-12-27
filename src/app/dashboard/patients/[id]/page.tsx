@@ -25,19 +25,13 @@ import {
   Save,
   AlertCircle,
   FilePlus,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
 import { format, differenceInYears, parseISO, addDays, subDays, isSameDay } from 'date-fns';
-import {
-  BarChart,
-  Bar,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-} from 'recharts';
+import { useForm, useWatch } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 
 import { type Task, type Staff } from '@/lib/data';
 import { Button } from '@/components/ui/button';
@@ -80,32 +74,88 @@ import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useRole } from '@/hooks/useRole';
 import { MultiSelect } from '@/components/ui/multi-select';
+import { generateBehaviorComment } from '@/ai/flows/generate-behavior-comment';
+import { useToast } from '@/hooks/use-toast';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+
 
 type SleepStatus = 'awake' | 'asleep';
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 function LogBehaviorDialog() {
   const [open, setOpen] = useState(false);
-  const [behavior, setBehavior] = useState<string[]>([]);
-  const [activity, setActivity] = useState('');
-  const [setting, setSetting] = useState('');
-  const [antecedent, setAntecedent] = useState('');
-  const [response, setResponse] = useState('');
-  const [intensity, setIntensity] = useState('');
-  const [comment, setComment] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const { toast } = useToast();
 
-  const handleSave = () => {
-    // In a real app, save this data
-    console.log({
-      behavior,
-      intensity,
-      activity,
-      setting,
-      antecedent,
-      response,
-      comment,
-    });
+  const formSchema = z.object({
+    behavior: z.array(z.string()).min(1, 'Please select at least one behavior.'),
+    activity: z.string().min(1, 'Activity is required.'),
+    setting: z.string().min(1, 'Setting is required.'),
+    antecedent: z.string().min(1, 'Antecedent is required.'),
+    response: z.string().min(1, 'Response is required.'),
+    intensity: z.string().min(1, 'Intensity is required.'),
+    comment: z.string().optional(),
+    eventDate: z.string(),
+    eventTime: z.string(),
+  });
+
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
+      behavior: [],
+      activity: '',
+      setting: '',
+      antecedent: '',
+      response: '',
+      intensity: '',
+      comment: '',
+      eventDate: format(new Date(), 'yyyy-MM-dd'),
+      eventTime: format(new Date(), 'HH:mm'),
+    },
+  });
+
+  const watchedFields = useWatch({ control: form.control });
+
+  const handleGenerateComment = async () => {
+    setIsGenerating(true);
+    try {
+      const { behavior, intensity, activity, setting, antecedent, response } = watchedFields;
+      if (!behavior.length || !intensity || !activity || !setting || !antecedent || !response) {
+        toast({
+          variant: 'destructive',
+          title: 'Missing Information',
+          description: 'Please fill out all fields before generating a comment.',
+        });
+        return;
+      }
+      
+      const result = await generateBehaviorComment({
+        behavior,
+        intensity,
+        activity,
+        setting,
+        antecedent,
+        response,
+      });
+      form.setValue('comment', result.comment);
+
+    } catch (error) {
+      console.error("AI comment generation failed:", error);
+      toast({
+        variant: 'destructive',
+        title: 'AI Generation Failed',
+        description: 'Could not generate a comment at this time.',
+      });
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+  
+
+  const handleSave = (values: z.infer<typeof formSchema>) => {
+    console.log(values);
     setOpen(false);
+    form.reset();
   };
   
   return (
@@ -120,116 +170,158 @@ function LogBehaviorDialog() {
         <DialogHeader>
           <DialogTitle>Add Behaviour Event</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="event-date">Event Date</Label>
-                    <Input id="event-date" type="date" defaultValue={format(new Date(), 'yyyy-MM-dd')} />
+        <Form {...form}>
+            <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="eventDate" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Event Date</FormLabel>
+                            <FormControl><Input type="date" {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="eventTime" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Event Time</FormLabel>
+                            <FormControl><Input type="time" {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="event-time">Event Time</Label>
-                    <Input id="event-time" type="time" defaultValue={format(new Date(), 'HH:mm')} />
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="behavior" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Behaviour Type</FormLabel>
+                            <FormControl>
+                                <MultiSelect
+                                    options={["Eloping", "Wandering", "Rummaging"]}
+                                    selected={field.value}
+                                    onChange={field.onChange}
+                                    placeholder="Select behavior(s)..."
+                                />
+                            </FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                     <FormField control={form.control} name="intensity" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Intensity</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select intensity" /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="low">Low</SelectItem>
+                                    <SelectItem value="medium">Medium</SelectItem>
+                                    <SelectItem value="high">High</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
                 </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                    <Label htmlFor="behavior">Behaviour Type</Label>
-                     <MultiSelect
-                        options={["Eloping", "Wandering", "Rummaging"]}
-                        selected={behavior}
-                        onChange={setBehavior}
-                        placeholder="Select behavior(s)..."
-                    />
+                <div className="grid grid-cols-2 gap-4">
+                    <FormField control={form.control} name="activity" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Activity</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select activity..." /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="leisure">Leisure</SelectItem>
+                                    <SelectItem value="community">Community</SelectItem>
+                                    <SelectItem value="dining">Dining</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                     <FormField control={form.control} name="setting" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Setting</FormLabel>
+                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                <FormControl>
+                                    <SelectTrigger><SelectValue placeholder="Select setting..." /></SelectTrigger>
+                                </FormControl>
+                                <SelectContent>
+                                    <SelectItem value="community">Community</SelectItem>
+                                    <SelectItem value="bedroom">Bedroom</SelectItem>
+                                    <SelectItem value="patio">Patio</SelectItem>
+                                    <SelectItem value="living-area">Living Area</SelectItem>
+                                </SelectContent>
+                            </Select>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
                 </div>
-                <div className="space-y-2">
-                    <Label htmlFor="intensity">Intensity</Label>
-                    <Select value={intensity} onValueChange={setIntensity}>
-                        <SelectTrigger id="intensity">
-                            <SelectValue placeholder="Select intensity" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="low">Low</SelectItem>
-                            <SelectItem value="medium">Medium</SelectItem>
-                            <SelectItem value="high">High</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            </div>
-             <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                  <Label htmlFor="activity">Activity</Label>
-                  <Select value={activity} onValueChange={setActivity}>
-                    <SelectTrigger id="activity">
-                        <SelectValue placeholder="Select activity..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="leisure">Leisure</SelectItem>
-                        <SelectItem value="community">Community</SelectItem>
-                        <SelectItem value="dining">Dining</SelectItem>
-                    </SelectContent>
-                  </Select>
-              </div>
-              <div className="space-y-2">
-                  <Label htmlFor="setting">Setting</Label>
-                  <Select value={setting} onValueChange={setSetting}>
-                    <SelectTrigger id="setting">
-                        <SelectValue placeholder="Select setting..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="community">Community</SelectItem>
-                        <SelectItem value="bedroom">Bedroom</SelectItem>
-                        <SelectItem value="patio">Patio</SelectItem>
-                        <SelectItem value="living-area">Living Area</SelectItem>
-                    </SelectContent>
-                  </Select>
-              </div>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="antecedent">Antecedent</Label>
-                 <Select value={antecedent} onValueChange={setAntecedent}>
-                    <SelectTrigger id="antecedent">
-                        <SelectValue placeholder="What was the antecedent?" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="given-instruction">Given instruction</SelectItem>
-                        <SelectItem value="peer-interaction">Peer interaction</SelectItem>
-                        <SelectItem value="staff-interaction">Staff Interaction</SelectItem>
-                    </SelectContent>
-                  </Select>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="response">Intervention/Response</Label>
-                <Select value={response} onValueChange={setResponse}>
-                    <SelectTrigger id="response">
-                        <SelectValue placeholder="How was this addressed?" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="verbal-redirection">Verbal redirection</SelectItem>
-                        <SelectItem value="blocked">Blocked</SelectItem>
-                    </SelectContent>
-                  </Select>
-            </div>
-            <div className="space-y-2">
-                <Label htmlFor="comment">Comments</Label>
-                <Textarea
-                    id="comment"
-                    value={comment}
-                    onChange={(e) => setComment(e.target.value)}
-                    placeholder="Additional observations..."
-                    rows={3}
-                />
-            </div>
-        </div>
-        <DialogFooter>
-          <DialogClose asChild>
-            <Button type="button" variant="outline">
-              Cancel
-            </Button>
-          </DialogClose>
-          <Button type="button" onClick={handleSave}>
-            Save Event
-          </Button>
-        </DialogFooter>
+                <FormField control={form.control} name="antecedent" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Antecedent</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="What was the antecedent?" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="given-instruction">Given instruction</SelectItem>
+                                <SelectItem value="peer-interaction">Peer interaction</SelectItem>
+                                <SelectItem value="staff-interaction">Staff Interaction</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+                <FormField control={form.control} name="response" render={({ field }) => (
+                    <FormItem>
+                        <FormLabel>Intervention/Response</FormLabel>
+                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                                <SelectTrigger><SelectValue placeholder="How was this addressed?" /></SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                                <SelectItem value="verbal-redirection">Verbal redirection</SelectItem>
+                                <SelectItem value="blocked">Blocked</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+                <FormField control={form.control} name="comment" render={({ field }) => (
+                    <FormItem>
+                         <div className="flex items-center justify-between">
+                            <FormLabel>Comments</FormLabel>
+                            <Button type="button" variant="ghost" size="sm" onClick={handleGenerateComment} disabled={isGenerating}>
+                                {isGenerating ? (
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Sparkles className="mr-2 h-4 w-4" />
+                                )}
+                                Generate with AI
+                            </Button>
+                        </div>
+                        <FormControl>
+                           <Textarea
+                                placeholder="Additional observations... or generate one with AI!"
+                                rows={3}
+                                {...field}
+                            />
+                        </FormControl>
+                        <FormMessage />
+                    </FormItem>
+                )} />
+                
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="outline">
+                      Cancel
+                    </Button>
+                  </DialogClose>
+                  <Button type="submit">
+                    Save Event
+                  </Button>
+                </DialogFooter>
+            </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );
@@ -391,6 +483,17 @@ function PatientDetailSkeleton() {
   );
 }
 
+const editPatientSchema = z.object({
+  name: z.string().min(1, 'Full name is required.'),
+  dateOfBirth: z.string().optional(),
+  disabilityType: z.string().optional(),
+  emergencyContactName: z.string().optional(),
+  emergencyContactPhone: z.string().optional(),
+  emergencyContactRelation: z.string().optional(),
+  careNeeds: z.string().optional(),
+  notes: z.string().optional(),
+});
+
 
 export default function PatientDetailPage({
   params,
@@ -400,6 +503,7 @@ export default function PatientDetailPage({
   const { id } = use(params);
   const firestore = useFirestore();
   const { role } = useRole();
+  const { toast } = useToast();
 
   const patientRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
@@ -429,7 +533,62 @@ export default function PatientDetailPage({
   const [newRecordDescription, setNewRecordDescription] = useState('');
   const [activeTab, setActiveTab] = useState('care-records');
 
+  const form = useForm<z.infer<typeof editPatientSchema>>({
+    resolver: zodResolver(editPatientSchema),
+  });
+
+  const { isSubmitting } = form.formState;
+
+  // When patient data loads or editing starts, reset the form with patient data
+  useMemo(() => {
+    if (patient) {
+      form.reset({
+        name: patient.name,
+        dateOfBirth: patient.dateOfBirth,
+        disabilityType: patient.disabilityType,
+        emergencyContactName: patient.emergencyContact?.name,
+        emergencyContactPhone: patient.emergencyContact?.phone,
+        emergencyContactRelation: patient.emergencyContact?.relation,
+        careNeeds: patient.careNeeds,
+        notes: patient.notes,
+      });
+    }
+  }, [patient, form]);
+
   const canEdit = role === 'admin';
+
+  const handleUpdatePatient = (values: z.infer<typeof editPatientSchema>) => {
+    if (!patientRef) return;
+    
+    const updatedData = {
+      ...values,
+      emergencyContact: {
+        name: values.emergencyContactName || '',
+        phone: values.emergencyContactPhone || '',
+        relation: values.emergencyContactRelation || '',
+      },
+      updatedAt: serverTimestamp()
+    };
+    // Remove individual contact fields
+    delete (updatedData as any).emergencyContactName;
+    delete (updatedData as any).emergencyContactPhone;
+    delete (updatedData as any).emergencyContactRelation;
+
+    updateDoc(patientRef, updatedData)
+      .then(() => {
+        toast({ title: 'Patient updated successfully.' });
+        setIsEditing(false);
+      })
+      .catch(async (serverError) => {
+        const permissionError = new FirestorePermissionError({
+            path: patientRef.path,
+            operation: 'update',
+            requestResourceData: updatedData,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        toast({ variant: 'destructive', title: 'Update failed', description: 'Could not save changes.'})
+    });
+  };
 
   const handleCreateTodayRecord = () => {
     if (!firestore || !id || !newRecordDescription) return;
@@ -557,90 +716,79 @@ export default function PatientDetailPage({
             </CardHeader>
             <CardContent>
               {isEditing ? (
-                <form
-                  onSubmit={e => {
-                    e.preventDefault();
-                    setIsEditing(false);
-                  }}
-                  className="space-y-4"
-                >
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="name">Full Name</Label>
-                      <Input
-                        id="name"
-                        name="name"
-                        defaultValue={patient.name}
-                        required
-                      />
+                <Form {...form}>
+                  <form
+                    onSubmit={form.handleSubmit(handleUpdatePatient)}
+                    className="space-y-4"
+                  >
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField control={form.control} name="name" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Full Name</FormLabel>
+                                <FormControl><Input {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="dateOfBirth" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Date of Birth</FormLabel>
+                                <FormControl><Input type="date" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="date_of_birth">Date of Birth</Label>
-                      <Input
-                        id="date_of_birth"
-                        name="date_of_birth"
-                        type="date"
-                        defaultValue={patient.dateOfBirth}
-                      />
+                     <FormField control={form.control} name="disabilityType" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Disability Type</FormLabel>
+                            <FormControl><Input {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                    <div className="grid gap-4 sm:grid-cols-2">
+                        <FormField control={form.control} name="emergencyContactName" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Emergency Contact</FormLabel>
+                                <FormControl><Input placeholder="Name" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
+                        <FormField control={form.control} name="emergencyContactPhone" render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Emergency Phone</FormLabel>
+                                <FormControl><Input placeholder="Phone" {...field} /></FormControl>
+                                <FormMessage />
+                            </FormItem>
+                        )} />
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="disability_type">Disability Type</Label>
-                      <Input
-                        id="disability_type"
-                        name="disability_type"
-                        defaultValue={patient.disabilityType}
-                      />
+                    <FormField control={form.control} name="careNeeds" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Care Needs</FormLabel>
+                            <FormControl><Textarea rows={3} {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+                    <FormField control={form.control} name="notes" render={({ field }) => (
+                        <FormItem>
+                            <FormLabel>Notes</FormLabel>
+                            <FormControl><Textarea rows={2} {...field} /></FormControl>
+                            <FormMessage />
+                        </FormItem>
+                    )} />
+
+                    <div className="flex justify-end gap-3 pt-4">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => setIsEditing(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button type="submit" disabled={isSubmitting}>
+                        {isSubmitting ? <><Loader2 className="mr-2 h-4 w-4 animate-spin"/> Saving...</> : "Save Changes"}
+                      </Button>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="emergency_contact_name">
-                        Emergency Contact
-                      </Label>
-                      <Input
-                        id="emergency_contact_name"
-                        name="emergency_contact_name"
-                        defaultValue={patient.emergencyContact?.name}
-                      />
-                    </div>
-                    <div className="space-y-2 sm:col-span-2">
-                      <Label htmlFor="emergency_contact_phone">
-                        Emergency Phone
-                      </Label>
-                      <Input
-                        id="emergency_contact_phone"
-                        name="emergency_contact_phone"
-                        defaultValue={patient.emergencyContact?.phone}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="care_needs">Care Needs</Label>
-                    <Textarea
-                      id="care_needs"
-                      name="care_needs"
-                      defaultValue={patient.careNeeds}
-                      rows={3}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="notes">Notes</Label>
-                    <Textarea
-                      id="notes"
-                      name="notes"
-                      defaultValue={patient.notes}
-                      rows={2}
-                    />
-                  </div>
-                  <div className="flex justify-end gap-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setIsEditing(false)}
-                    >
-                      Cancel
-                    </Button>
-                    <Button type="submit">Save Changes</Button>
-                  </div>
-                </form>
+                  </form>
+                </Form>
               ) : (
                 <div className="space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -966,6 +1114,3 @@ export default function PatientDetailPage({
   );
 }
 
-    
-
-    
