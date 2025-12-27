@@ -120,7 +120,7 @@ function LogBehaviorDialog() {
     setIsGenerating(true);
     try {
       const { behavior, intensity, activity, setting, antecedent, response } = watchedFields;
-      if (!behavior.length || !intensity || !activity || !setting || !antecedent || !response) {
+      if (!behavior || behavior.length === 0 || !intensity || !activity || !setting || !antecedent || !response) {
         toast({
           variant: 'destructive',
           title: 'Missing Information',
@@ -130,7 +130,7 @@ function LogBehaviorDialog() {
       }
       
       const result = await generateBehaviorComment({
-        behavior,
+        behavior: behavior || [], // Ensure behavior is an array
         intensity,
         activity,
         setting,
@@ -168,7 +168,7 @@ function LogBehaviorDialog() {
       </DialogTrigger>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
-          <DialogTitle>Add Behaviour Event</DialogTitle>
+          <DialogTitle>Add Behavior Event</DialogTitle>
         </DialogHeader>
         <Form {...form}>
             <form onSubmit={form.handleSubmit(handleSave)} className="space-y-4 py-4 max-h-[70vh] overflow-y-auto pr-4">
@@ -191,7 +191,7 @@ function LogBehaviorDialog() {
                 <div className="grid grid-cols-2 gap-4">
                     <FormField control={form.control} name="behavior" render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Behaviour Type</FormLabel>
+                            <FormLabel>Behavior Type</FormLabel>
                             <FormControl>
                                 <MultiSelect
                                     options={["Eloping", "Wandering", "Rummaging"]}
@@ -1114,3 +1114,6 @@ export default function PatientDetailPage({
   );
 }
 
+
+
+    
