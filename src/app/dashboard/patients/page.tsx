@@ -54,6 +54,7 @@ import {
 } from '@/firebase';
 import { useRole } from '@/hooks/useRole';
 import { useToast } from '@/hooks/use-toast';
+import { useNotifications } from '@/hooks/use-notifications';
 
 import type { Patient } from '@/lib/data';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -80,6 +81,7 @@ function AddPatientDialog() {
   const { role } = useRole();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const { addNotification } = useNotifications();
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -120,8 +122,13 @@ function AddPatientDialog() {
     
     const patientsRef = collection(firestore, 'patients');
     addDoc(patientsRef, newPatientDoc)
-      .then(() => {
+      .then((docRef) => {
         toast({ title: 'Patient created successfully.' });
+        addNotification({
+          title: 'New Patient Added',
+          description: `${values.name} has been added to the system.`,
+          href: `/dashboard/patients/${docRef.id}`,
+        });
         form.reset();
         setOpen(false);
       })
@@ -384,3 +391,5 @@ export default function PatientsPage() {
     </div>
   );
 }
+
+    

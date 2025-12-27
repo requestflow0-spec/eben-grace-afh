@@ -79,6 +79,7 @@ import { generateBehaviorComment } from '@/ai/flows/generate-behavior-comment';
 import { useToast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Checkbox } from '@/components/ui/checkbox';
+import { useNotifications } from '@/hooks/use-notifications';
 
 
 type SleepStatus = 'awake' | 'asleep';
@@ -86,11 +87,12 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 const BEHAVIOR_OPTIONS = ["Eloping", "Wandering", "Rummaging", "Verbal Aggression", "Physical Aggression", "Self-harm"];
 
-function LogBehaviorDialog({ patientId }: { patientId: string }) {
+function LogBehaviorDialog({ patientId, patientName }: { patientId: string; patientName: string; }) {
   const [open, setOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
   const firestore = useFirestore();
+  const { addNotification } = useNotifications();
 
   const formSchema = z.object({
     behavior: z.array(z.string()).min(1, 'Please select at least one behavior.'),
@@ -178,6 +180,11 @@ function LogBehaviorDialog({ patientId }: { patientId: string }) {
     addDoc(behaviorEventsRef, newBehaviorEvent)
       .then(() => {
         toast({ title: "Behavior event saved successfully." });
+        addNotification({
+          title: 'New Behavior Event Logged',
+          description: `A ${values.intensity} intensity behavior event was logged for ${patientName}.`,
+          href: `/dashboard/patients/${patientId}`,
+        });
         setOpen(false);
         form.reset();
       })
@@ -649,6 +656,7 @@ export default function PatientDetailPage({
   const { user } = useUser();
   const { role } = useRole();
   const { toast } = useToast();
+  const { addNotification } = useNotifications();
 
   const patientRef = useMemoFirebase(() => {
     if (!firestore || !id) return null;
@@ -743,11 +751,11 @@ export default function PatientDetailPage({
   };
 
   const handleCreateTodayRecord = () => {
-    if (!firestore || !id || !newRecordDescription || !user) return;
+    if (!firestore || !id || !newRecordDescription || !user || !patient) return;
     const recordsRef = collection(firestore, `patients/${id}/dailyRecords`);
     const newRecord = {
         description: newRecordDescription,
-        patientName: patient?.name || 'Unknown Patient',
+        patientName: patient.name,
         patientId: id,
         date: new Date().toISOString(),
         completed: false,
@@ -756,7 +764,13 @@ export default function PatientDetailPage({
           name: user.displayName || 'Unknown Staff',
         }
     };
-    addDoc(recordsRef, newRecord).catch(async (serverError) => {
+    addDoc(recordsRef, newRecord).then(() => {
+        addNotification({
+          title: 'New Care Record Added',
+          description: `A new record for ${patient.name} has been added.`,
+          href: `/dashboard/patients/${id}`,
+        });
+    }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: recordsRef.path,
             operation: 'create',
@@ -769,9 +783,17 @@ export default function PatientDetailPage({
   };
 
   const handleToggleRecordStatus = (taskId: string, currentStatus: boolean) => {
-    if (!firestore || !id) return;
+    if (!firestore || !id || !patient) return;
     const recordRef = doc(firestore, `patients/${id}/dailyRecords`, taskId);
-    updateDoc(recordRef, { completed: !currentStatus }).catch(async (serverError) => {
+    updateDoc(recordRef, { completed: !currentStatus }).then(() => {
+       if (!currentStatus) { // If it was false, it's now true (completed)
+        addNotification({
+          title: 'Care Record Completed',
+          description: `A care record for ${patient.name} was marked as complete.`,
+          href: `/dashboard/patients/${id}`,
+        });
+      }
+    }).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
             path: recordRef.path,
             operation: 'update',
@@ -1063,7 +1085,7 @@ export default function PatientDetailPage({
                         </Dialog>
                     )}
                     {activeTab === 'behavior-tracking' && (
-                        <LogBehaviorDialog patientId={id} />
+                        <LogBehaviorDialog patientId={id} patientName={patient.name} />
                     )}
                   </div>
               </CardHeader>
@@ -1091,7 +1113,7 @@ export default function PatientDetailPage({
                                   <p className="text-sm text-muted-foreground mt-1">
                                     {task.description}
                                   </p>
-                                  <p className="text-xs text-muted-foreground mt-1">
+                                   <p className="text-xs text-muted-foreground mt-1">
                                     By {creatorName}
                                   </p>
                                 </div>
@@ -1301,3 +1323,5 @@ export default function PatientDetailPage({
     </div>
   );
 }
+
+    
