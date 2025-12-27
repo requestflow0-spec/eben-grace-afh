@@ -111,6 +111,8 @@ export default function ReportsPage() {
   }, [selectedPatientId, firestore, patients, toast]);
   
   const handlePrint = () => {
+    // Set the data attribute on the body right before printing
+    document.body.setAttribute('data-print-option', printOption);
     window.print();
   };
   
@@ -154,13 +156,16 @@ export default function ReportsPage() {
           }
 
           /* Conditional printing styles */
-          body[data-print-option="all"] .print-section,
-          body[data-print-option="care"] .print-care,
-          body[data-print-option="sleep"] .print-sleep,
-          body[data-print-option="behavior"] .print-behavior {
+          body[data-print-option="all"] .print-section {
             display: block;
           }
-          body[data-print-option="all"] .print-summary {
+          body[data-print-option="care"] .print-care {
+            display: block;
+          }
+          body[data-print-option="sleep"] .print-sleep {
+            display: block;
+          }
+          body[data-print-option="behavior"] .print-behavior {
             display: block;
           }
         }
@@ -213,7 +218,7 @@ export default function ReportsPage() {
       </Card>
       
       {isLoading && (
-          <div className="flex flex-col items-center justify-center text-center p-10 border-2 border-dashed rounded-lg h-full">
+          <div className="flex flex-col items-center justify-center text-center p-10 border-2 border-dashed rounded-lg h-full no-print">
             <Loader2 className="h-12 w-12 text-muted-foreground animate-spin" />
             <h3 className="mt-4 text-lg font-semibold">Loading Patient Data...</h3>
             <p className="mt-1 text-sm text-muted-foreground">Please wait while we fetch all records.</p>
@@ -229,7 +234,7 @@ export default function ReportsPage() {
       )}
 
       {patientData && !isLoading && (
-        <div data-print-option={printOption} className="printable-area space-y-6">
+        <div className="printable-area space-y-6">
             {/* Patient Summary Card */}
             <Card className="printable-card print-section print-summary">
               <CardHeader>
@@ -323,3 +328,5 @@ export default function ReportsPage() {
     </div>
   );
 }
+
+    
