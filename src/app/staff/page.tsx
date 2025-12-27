@@ -60,7 +60,7 @@ function AddStaffDialog() {
         status: 'pending',
         // Fill in default/empty values for other required fields
         id: '', // This will be updated upon user signup
-        role: 'Staff',
+        role: 'staff',
         phone: '',
         schedule: 'Not Set',
         certifications: [],
@@ -276,5 +276,3 @@ export default function StaffPage() {
     </DashboardLayout>
   )
 }
-
-    
