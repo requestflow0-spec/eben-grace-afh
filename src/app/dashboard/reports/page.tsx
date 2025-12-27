@@ -23,7 +23,7 @@ import type { Patient, Task, SleepLog } from '@/lib/data';
 import { Loader2, User, Printer, Calendar, Bed, Activity, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { differenceInYears, parseISO, format } from 'date-fns';
+import { differenceInYears, parseISO, format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
@@ -33,12 +33,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from '@/components/ui/input';
 
 type PrintOption = "all" | "care" | "sleep" | "behavior";
 
 export default function ReportsPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [printOption, setPrintOption] = useState<PrintOption>("all");
+  const [dateRange, setDateRange] = useState<{ from: string | null; to: string | null }>({ from: null, to: null });
   const [patientData, setPatientData] = useState<{
     patient: Patient;
     records: Task[];
@@ -110,6 +112,29 @@ export default function ReportsPage() {
     fetchPatientData();
   }, [selectedPatientId, firestore, patients, toast]);
   
+  const filteredData = useMemo(() => {
+    if (!patientData) return null;
+
+    const { from, to } = dateRange;
+    if (!from || !to) return patientData;
+    
+    const interval = {
+        start: startOfDay(new Date(from)),
+        end: endOfDay(new Date(to)),
+    };
+
+    const filteredRecords = patientData.records.filter(r => isWithinInterval(new Date(r.date), interval));
+    const filteredSleepLogs = patientData.sleepLogs.filter(l => isWithinInterval(new Date(l.log_date), interval));
+    // Add behavior event filtering when implemented
+
+    return {
+        ...patientData,
+        records: filteredRecords,
+        sleepLogs: filteredSleepLogs,
+    };
+  }, [patientData, dateRange]);
+
+
   const handlePrint = () => {
     // Set the data attribute on the body right before printing
     document.body.setAttribute('data-print-option', printOption);
@@ -123,8 +148,8 @@ export default function ReportsPage() {
     behavior: "Behavior Events",
   };
 
-  const age = patientData?.patient.dateOfBirth
-    ? differenceInYears(new Date(), parseISO(patientData.patient.dateOfBirth))
+  const age = filteredData?.patient.dateOfBirth
+    ? differenceInYears(new Date(), parseISO(filteredData.patient.dateOfBirth))
     : null;
 
   return (
@@ -179,13 +204,13 @@ export default function ReportsPage() {
           </p>
         </div>
          <div className="flex items-center gap-2">
-            <Button onClick={handlePrint} disabled={!patientData || isLoading}>
+            <Button onClick={handlePrint} disabled={!filteredData || isLoading}>
                 <Printer className="mr-2 h-4 w-4" />
                 Print {printLabels[printOption]}
             </Button>
             <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="icon" disabled={!patientData || isLoading}>
+                    <Button variant="outline" size="icon" disabled={!filteredData || isLoading}>
                         <ChevronDown className="h-4 w-4" />
                     </Button>
                 </DropdownMenuTrigger>
@@ -200,20 +225,42 @@ export default function ReportsPage() {
       </div>
 
       <Card className="no-print">
-        <CardContent className="p-4">
-            <Label htmlFor="patient-select" className="text-sm font-medium">Select Patient</Label>
-            <Select onValueChange={setSelectedPatientId} disabled={isLoadingPatients}>
-                <SelectTrigger id="patient-select">
-                    <SelectValue placeholder={isLoadingPatients ? "Loading patients..." : "Select a patient"} />
-                </SelectTrigger>
-                <SelectContent>
-                    {patients?.map(p => (
-                        <SelectItem key={p.id} value={p.id}>
-                            {p.name}
-                        </SelectItem>
-                    ))}
-                </SelectContent>
-            </Select>
+        <CardContent className="p-4 grid sm:grid-cols-3 gap-4 items-end">
+            <div className="space-y-2 sm:col-span-1">
+                <Label htmlFor="patient-select" className="text-sm font-medium">Select Patient</Label>
+                <Select onValueChange={setSelectedPatientId} disabled={isLoadingPatients}>
+                    <SelectTrigger id="patient-select">
+                        <SelectValue placeholder={isLoadingPatients ? "Loading patients..." : "Select a patient"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                        {patients?.map(p => (
+                            <SelectItem key={p.id} value={p.id}>
+                                {p.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="start-date">Start Date</Label>
+                <Input 
+                    type="date" 
+                    id="start-date" 
+                    value={dateRange.from || ''}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, from: e.target.value }))}
+                    disabled={!selectedPatientId}
+                />
+            </div>
+            <div className="space-y-2">
+                <Label htmlFor="end-date">End Date</Label>
+                <Input 
+                    type="date" 
+                    id="end-date" 
+                    value={dateRange.to || ''}
+                    onChange={(e) => setDateRange(prev => ({ ...prev, to: e.target.value }))}
+                    disabled={!selectedPatientId}
+                />
+            </div>
         </CardContent>
       </Card>
       
@@ -233,25 +280,25 @@ export default function ReportsPage() {
         </div>
       )}
 
-      {patientData && !isLoading && (
+      {filteredData && !isLoading && (
         <div className="printable-area space-y-6">
             {/* Patient Summary Card */}
             <Card className="printable-card print-section print-summary">
               <CardHeader>
                 <div className="flex flex-col sm:flex-row items-start gap-4">
                     <Avatar className="h-20 w-20 border">
-                        <AvatarImage src={patientData.patient.avatarUrl} alt={patientData.patient.name} />
-                        <AvatarFallback>{patientData.patient.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
+                        <AvatarImage src={filteredData.patient.avatarUrl} alt={filteredData.patient.name} />
+                        <AvatarFallback>{filteredData.patient.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
-                        <CardTitle className="text-2xl">{patientData.patient.name}</CardTitle>
+                        <CardTitle className="text-2xl">{filteredData.patient.name}</CardTitle>
                         <CardDescription>
                             {age !== null ? `${age} years old` : 'Age not specified'}
-                            {patientData.patient.disabilityType && ` • ${patientData.patient.disabilityType}`}
+                            {filteredData.patient.disabilityType && ` • ${filteredData.patient.disabilityType}`}
                         </CardDescription>
                          <div className="mt-4 text-sm text-muted-foreground space-y-1">
-                            <p><strong>Care Needs:</strong> {patientData.patient.careNeeds || 'N/A'}</p>
-                            <p><strong>Emergency Contact:</strong> {patientData.patient.emergencyContact?.name} ({patientData.patient.emergencyContact?.relation}) - {patientData.patient.emergencyContact?.phone}</p>
+                            <p><strong>Care Needs:</strong> {filteredData.patient.careNeeds || 'N/A'}</p>
+                            <p><strong>Emergency Contact:</strong> {filteredData.patient.emergencyContact?.name} ({filteredData.patient.emergencyContact?.relation}) - {filteredData.patient.emergencyContact?.phone}</p>
                         </div>
                     </div>
                 </div>
@@ -267,9 +314,9 @@ export default function ReportsPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                    {patientData.records.length > 0 ? (
+                    {filteredData.records.length > 0 ? (
                         <div className="space-y-4">
-                            {patientData.records.map(record => (
+                            {filteredData.records.map(record => (
                                 <div key={record.id} className="space-y-1">
                                     <div className="flex justify-between items-center">
                                         <p className="font-semibold">{format(new Date(record.date), 'EEEE, MMMM d, yyyy, p')}</p>
@@ -281,7 +328,7 @@ export default function ReportsPage() {
                             ))}
                         </div>
                     ) : (
-                        <p className="text-muted-foreground text-center py-4">No daily records found.</p>
+                        <p className="text-muted-foreground text-center py-4">No daily records found for the selected date range.</p>
                     )}
                 </CardContent>
             </Card>
@@ -295,9 +342,9 @@ export default function ReportsPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                   {patientData.sleepLogs.length > 0 ? (
+                   {filteredData.sleepLogs.length > 0 ? (
                         <div className="space-y-4">
-                            {patientData.sleepLogs.map(log => (
+                            {filteredData.sleepLogs.map(log => (
                                 <div key={log.id}>
                                     <p className="font-semibold">{format(new Date(log.log_date), 'EEEE, MMMM d, yyyy')}</p>
                                     <p className="text-muted-foreground text-sm">{log.notes || 'No notes for this day.'}</p>
@@ -307,7 +354,7 @@ export default function ReportsPage() {
                             ))}
                         </div>
                     ) : (
-                        <p className="text-muted-foreground text-center py-4">No sleep logs found.</p>
+                        <p className="text-muted-foreground text-center py-4">No sleep logs found for the selected date range.</p>
                     )}
                 </CardContent>
             </Card>
@@ -320,7 +367,7 @@ export default function ReportsPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                     <p className="text-muted-foreground text-center py-4">No behavior events logged for this patient.</p>
+                     <p className="text-muted-foreground text-center py-4">No behavior events logged for this patient for the selected date range.</p>
                 </CardContent>
             </Card>
         </div>
@@ -328,5 +375,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-
-    
