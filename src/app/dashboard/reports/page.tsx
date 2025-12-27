@@ -19,8 +19,8 @@ import {
 } from '@/components/ui/card';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
-import type { Patient, Task, SleepLog } from '@/lib/data';
-import { Loader2, User, Printer, Calendar, Bed, Activity, ChevronDown } from 'lucide-react';
+import type { Patient, Task, SleepLog, BehaviorEvent } from '@/lib/data';
+import { Loader2, User, Printer, Calendar, Bed, Activity, ChevronDown, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { differenceInYears, parseISO, format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
@@ -45,7 +45,7 @@ export default function ReportsPage() {
     patient: Patient;
     records: Task[];
     sleepLogs: SleepLog[];
-    behaviorEvents: any[]; // Placeholder for now
+    behaviorEvents: BehaviorEvent[];
   } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const { toast } = useToast();
@@ -85,15 +85,16 @@ export default function ReportsPage() {
         const sleepLogsRef = collection(firestore, `patients/${selectedPatientId}/sleepLogs`);
         const sleepLogsSnap = await getDocs(sleepLogsRef);
         const sleepLogs = sleepLogsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as SleepLog));
-
-        // Placeholder for behavior events as this collection does not exist yet
-        const behaviorEvents: any[] = [];
+        
+        const behaviorEventsRef = collection(firestore, `patients/${selectedPatientId}/behaviorEvents`);
+        const behaviorEventsSnap = await getDocs(behaviorEventsRef);
+        const behaviorEvents = behaviorEventsSnap.docs.map(doc => ({ id: doc.id, ...doc.data() } as BehaviorEvent));
 
         setPatientData({
           patient,
           records: records.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
           sleepLogs,
-          behaviorEvents,
+          behaviorEvents: behaviorEvents.sort((a,b) => new Date(b.eventDateTime).getTime() - new Date(a.eventDateTime).getTime()),
         });
 
       } catch (error) {
@@ -125,12 +126,14 @@ export default function ReportsPage() {
 
     const filteredRecords = patientData.records.filter(r => isWithinInterval(new Date(r.date), interval));
     const filteredSleepLogs = patientData.sleepLogs.filter(l => isWithinInterval(new Date(l.log_date), interval));
-    // Add behavior event filtering when implemented
+    const filteredBehaviorEvents = patientData.behaviorEvents.filter(e => isWithinInterval(new Date(e.eventDateTime), interval));
+
 
     return {
         ...patientData,
         records: filteredRecords,
         sleepLogs: filteredSleepLogs,
+        behaviorEvents: filteredBehaviorEvents,
     };
   }, [patientData, dateRange]);
 
@@ -367,11 +370,41 @@ export default function ReportsPage() {
                     </CardTitle>
                 </CardHeader>
                 <CardContent>
-                     <p className="text-muted-foreground text-center py-4">No behavior events logged for this patient for the selected date range.</p>
+                    {filteredData.behaviorEvents.length > 0 ? (
+                        <div className="space-y-4">
+                            {filteredData.behaviorEvents.map(event => (
+                                <div key={event.id} className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <p className="font-semibold">{format(new Date(event.eventDateTime), 'EEEE, MMMM d, yyyy, p')}</p>
+                                        <Badge variant="secondary">{event.intensity}</Badge>
+                                    </div>
+                                    <div className="flex flex-wrap gap-1">
+                                        {event.behavior.map((b: string) => <Badge key={b}>{b}</Badge>)}
+                                    </div>
+                                    <div className="text-sm text-muted-foreground grid grid-cols-2 gap-x-4 gap-y-1">
+                                        <p><strong className="text-foreground">Activity:</strong> {event.activity}</p>
+                                        <p><strong className="text-foreground">Setting:</strong> {event.setting}</p>
+                                        <p><strong className="text-foreground">Antecedent:</strong> {event.antecedent}</p>
+                                        <p><strong className="text-foreground">Response:</strong> {event.response}</p>
+                                    </div>
+                                    {event.comment && (
+                                        <div className="text-sm p-3 bg-muted/50 rounded-md flex items-start gap-2">
+                                            <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                            <p>{event.comment}</p>
+                                        </div>
+                                    )}
+                                     <Separator className="pt-2" />
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-muted-foreground text-center py-4">No behavior events logged for this patient for the selected date range.</p>
+                    )}
                 </CardContent>
             </Card>
         </div>
       )}
     </div>
   );
-}
+
+    
