@@ -36,6 +36,73 @@ import {
 import { Input } from '@/components/ui/input';
 
 type PrintOption = "all" | "care" | "sleep" | "behavior";
+type SleepStatus = 'awake' | 'asleep';
+
+const formatHour = (hour: number) => {
+    const date = new Date();
+    date.setHours(hour, 0, 0, 0);
+    return format(date, 'ha');
+};
+  
+const getSleepSummary = (hours: SleepStatus[]) => {
+    const sleepPeriods: { start: number; end: number; awakeIntervals: number[] }[] = [];
+    let currentPeriod: { start: number; end: number; awakeIntervals: number[] } | null = null;
+  
+    for (let i = 0; i < 24; i++) {
+        const hour = (i + 20) % 24; // Start check from 8 PM
+      if (hours[hour] === 'asleep') {
+        if (!currentPeriod) {
+          currentPeriod = { start: hour, end: hour, awakeIntervals: [] };
+        } else {
+          currentPeriod.end = hour;
+        }
+      } else { // Awake
+        if (currentPeriod) {
+            // Check if awake time is within the current sleep period
+            const distanceToEnd = (hour - currentPeriod.end + 24) % 24;
+            if (distanceToEnd <= 2) { // Allow for short gaps
+                currentPeriod.awakeIntervals.push(hour);
+                currentPeriod.end = hour; 
+            } else {
+                sleepPeriods.push(currentPeriod);
+                currentPeriod = null;
+            }
+        }
+      }
+    }
+  
+    if (currentPeriod) {
+        // Handle wrap-around period
+        const firstHour = (20) % 24;
+        if(sleepPeriods.length > 0 && sleepPeriods[0].start === firstHour && hours[firstHour] === 'asleep'){
+            const firstPeriod = sleepPeriods.shift()!;
+            currentPeriod.awakeIntervals.push(...firstPeriod.awakeIntervals)
+            currentPeriod.end = firstPeriod.end;
+        }
+        sleepPeriods.push(currentPeriod);
+    }
+    
+    // Process awake intervals to be only within start and end
+     sleepPeriods.forEach(p => {
+        p.awakeIntervals = p.awakeIntervals.filter(h => {
+            const end = p.end < p.start ? p.end + 24 : p.end;
+            const hour = h < p.start ? h + 24 : h;
+            return hour > p.start && hour < end;
+        });
+    });
+  
+    return sleepPeriods.map((period, index) => {
+        const totalHours = hours.filter(h => h === 'asleep').length;
+        const awakeTimes = period.awakeIntervals.map(formatHour).join(', ');
+        
+        return {
+            key: `period-${index}`,
+            sleepPeriod: `${formatHour(period.start)} - ${formatHour((period.end + 1) % 24)}`,
+            awakeTimes: awakeTimes || 'None',
+            totalHoursSlept: `${totalHours} hour(s)`
+        }
+    });
+  };
 
 export default function ReportsPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -347,14 +414,27 @@ export default function ReportsPage() {
                 <CardContent>
                    {filteredData.sleepLogs.length > 0 ? (
                         <div className="space-y-4">
-                            {filteredData.sleepLogs.map(log => (
-                                <div key={log.id}>
-                                    <p className="font-semibold">{format(new Date(log.log_date), 'EEEE, MMMM d, yyyy')}</p>
-                                    <p className="text-muted-foreground text-sm">{log.notes || 'No notes for this day.'}</p>
-                                    <p className="text-sm">Asleep for {log.hours.filter(h => h === 'asleep').length} hours.</p>
-                                     <Separator className="pt-2" />
-                                </div>
-                            ))}
+                            {filteredData.sleepLogs.map(log => {
+                                const sleepSummaries = getSleepSummary(log.hours);
+                                return (
+                                    <div key={log.id}>
+                                        <p className="font-semibold">{format(new Date(log.log_date), 'EEEE, MMMM d, yyyy')}</p>
+                                        {sleepSummaries.length > 0 ? (
+                                            sleepSummaries.map(summary => (
+                                                <div key={summary.key} className="text-sm mt-1">
+                                                    <p><strong>Sleep Period:</strong> {summary.sleepPeriod}</p>
+                                                    <p><strong>Awake Times:</strong> {summary.awakeTimes}</p>
+                                                    <p><strong>Total Sleep:</strong> {summary.totalHoursSlept}</p>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p className="text-sm">No sleep recorded for this day.</p>
+                                        )}
+                                        {log.notes && <p className="text-muted-foreground text-sm mt-1">Notes: {log.notes}</p>}
+                                        <Separator className="pt-2" />
+                                    </div>
+                                );
+                            })}
                         </div>
                     ) : (
                         <p className="text-muted-foreground text-center py-4">No sleep logs found for the selected date range.</p>
