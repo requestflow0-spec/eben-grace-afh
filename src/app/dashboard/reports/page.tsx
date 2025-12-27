@@ -20,16 +20,25 @@ import {
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import type { Patient, Task, SleepLog } from '@/lib/data';
-import { Loader2, User, Printer, Calendar, Bed, Activity } from 'lucide-react';
+import { Loader2, User, Printer, Calendar, Bed, Activity, ChevronDown } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { differenceInYears, parseISO, format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
+type PrintOption = "all" | "care" | "sleep" | "behavior";
 
 export default function ReportsPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [printOption, setPrintOption] = useState<PrintOption>("all");
   const [patientData, setPatientData] = useState<{
     patient: Patient;
     records: Task[];
@@ -104,6 +113,13 @@ export default function ReportsPage() {
   const handlePrint = () => {
     window.print();
   };
+  
+  const printLabels: Record<PrintOption, string> = {
+    all: "All Reports",
+    care: "Daily Care Records",
+    sleep: "Sleep Log",
+    behavior: "Behavior Events",
+  };
 
   const age = patientData?.patient.dateOfBirth
     ? differenceInYears(new Date(), parseISO(patientData.patient.dateOfBirth))
@@ -130,6 +146,22 @@ export default function ReportsPage() {
           .printable-card {
             border: 1px solid #e2e8f0;
             break-inside: avoid;
+            page-break-inside: avoid;
+          }
+           /* Base styles for printing */
+          .print-section {
+            display: none;
+          }
+
+          /* Conditional printing styles */
+          body[data-print-option="all"] .print-section,
+          body[data-print-option="care"] .print-care,
+          body[data-print-option="sleep"] .print-sleep,
+          body[data-print-option="behavior"] .print-behavior {
+            display: block;
+          }
+          body[data-print-option="all"] .print-summary {
+            display: block;
           }
         }
       `}</style>
@@ -141,10 +173,25 @@ export default function ReportsPage() {
             Select a patient to view a printable summary of their records.
           </p>
         </div>
-         <Button onClick={handlePrint} disabled={!patientData || isLoading}>
-            <Printer className="mr-2 h-4 w-4" />
-            Print Report
-        </Button>
+         <div className="flex items-center gap-2">
+            <Button onClick={handlePrint} disabled={!patientData || isLoading}>
+                <Printer className="mr-2 h-4 w-4" />
+                Print {printLabels[printOption]}
+            </Button>
+            <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="icon" disabled={!patientData || isLoading}>
+                        <ChevronDown className="h-4 w-4" />
+                    </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                    <DropdownMenuItem onSelect={() => setPrintOption("all")}>Print All Reports</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setPrintOption("care")}>Daily Care Records</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setPrintOption("sleep")}>Sleep Log</DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setPrintOption("behavior")}>Behavior Events</DropdownMenuItem>
+                </DropdownMenuContent>
+            </DropdownMenu>
+         </div>
       </div>
 
       <Card className="no-print">
@@ -182,9 +229,9 @@ export default function ReportsPage() {
       )}
 
       {patientData && !isLoading && (
-        <div className="printable-area space-y-6">
+        <div data-print-option={printOption} className="printable-area space-y-6">
             {/* Patient Summary Card */}
-            <Card className="printable-card">
+            <Card className="printable-card print-section print-summary">
               <CardHeader>
                 <div className="flex flex-col sm:flex-row items-start gap-4">
                     <Avatar className="h-20 w-20 border">
@@ -207,7 +254,7 @@ export default function ReportsPage() {
             </Card>
 
             {/* Daily Records Card */}
-            <Card className="printable-card">
+            <Card className="printable-card print-section print-care">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-xl">
                         <Calendar className="h-5 w-5" />
@@ -235,7 +282,7 @@ export default function ReportsPage() {
             </Card>
 
             {/* Sleep Logs Card */}
-            <Card className="printable-card">
+            <Card className="printable-card print-section print-sleep">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-xl">
                         <Bed className="h-5 w-5" />
@@ -260,7 +307,7 @@ export default function ReportsPage() {
                 </CardContent>
             </Card>
              {/* Behavior Logs Card */}
-            <Card className="printable-card">
+            <Card className="printable-card print-section print-behavior">
                 <CardHeader>
                     <CardTitle className="flex items-center gap-2 text-xl">
                         <Activity className="h-5 w-5" />
@@ -276,5 +323,3 @@ export default function ReportsPage() {
     </div>
   );
 }
-
-    
