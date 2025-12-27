@@ -648,10 +648,11 @@ const editPatientSchema = z.object({
 
 
 function PatientDetailPageContent({
-  params,
+  params: paramsProp,
 }: {
   params: { id: string };
 }) {
+  const params = use(Promise.resolve(paramsProp));
   const { id } = params;
   const firestore = useFirestore();
   const { user } = useUser();
@@ -1336,5 +1337,3 @@ export default function PatientDetailPage({
     </DashboardLayout>
   )
 }
-
-    
