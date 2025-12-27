@@ -24,7 +24,7 @@ import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRole } from '@/hooks/useRole';
 import { useMemo, useState } from 'react';
-import { collection, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, orderBy, addDoc, serverTimestamp, getDocs, collectionGroup, limit } from 'firebase/firestore';
 import type { Patient, Task, Staff } from '@/lib/data';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
@@ -258,13 +258,15 @@ export default function DashboardPage() {
 
   const allRecordsQuery = useMemoFirebase(() => {
       if (!firestore) return null;
-      // This is not efficient for large datasets, but works for a prototype.
-      // In a real app, you'd likely paginate or query by date range.
-      return query(collection(firestore, 'patients'), orderBy('createdAt', 'desc'));
+      // Use a collection group query to get all daily records across all patients.
+      return query(
+        collectionGroup(firestore, 'dailyRecords'), 
+        orderBy('date', 'desc'),
+        limit(20) // Limit to a reasonable number for the dashboard
+      );
   }, [firestore]);
   
-  // This is a placeholder as we don't have a flat 'dailyRecords' collection anymore
-  const { data: allRecords } = useCollection<Task>(null);
+  const { data: allRecords } = useCollection<Task>(allRecordsQuery);
 
   const recentRecords = useMemo(() => {
     if (!allRecords) return [];
