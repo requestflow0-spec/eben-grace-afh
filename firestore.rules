@@ -52,12 +52,6 @@ service cloud.firestore {
       }
     }
 
-    // --- Collection Group Rules ---
-    // This rule is necessary for the dashboard to query all recent daily records.
-    match /{path=**}/dailyRecords/{recordId} {
-      allow read: if isAdmin() || isStaff();
-    }
-
     // --- Patient Rules ---
     match /patients/{patientId} {
       // Admins and staff can read patient data.
