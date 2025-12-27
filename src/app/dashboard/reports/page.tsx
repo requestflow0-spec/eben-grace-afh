@@ -20,10 +20,10 @@ import {
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import type { Patient, Task, SleepLog, BehaviorEvent } from '@/lib/data';
-import { Loader2, User, Printer, Calendar, Bed, Activity, ChevronDown, MessageSquare, Sparkles } from 'lucide-react';
+import { Loader2, User, Printer, Calendar, Bed, Activity, ChevronDown, MessageSquare } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { differenceInYears, parseISO, format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
+import { differenceInYears, parseISO, format, isWithinInterval, startOfDay, endOfDay, eachDayOfInterval, subDays } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Label } from '@/components/ui/label';
@@ -34,49 +34,83 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from '@/components/ui/input';
-import { summarizeSleepLog } from '@/ai/flows/summarize-sleep-log';
 
 type PrintOption = "all" | "care" | "sleep" | "behavior";
 type SleepStatus = 'awake' | 'asleep';
-type TimelineEvent = 
-    | { type: 'sleep'; start: number; end: number }
-    | { type: 'awake'; duration: number };
 
-
-const formatHour = (hour: number) => {
-    const date = new Date();
-    date.setHours(hour, 0, 0, 0);
-    return format(date, 'ha');
+type OvernightSleepReport = {
+    date: Date;
+    totalSleep: number;
+    timeline: {
+        type: 'sleep' | 'awake';
+        start: number; // hour index (0-23)
+        end: number;   // hour index (0-23)
+        duration: number;
+    }[];
 };
 
-const getSleepTimeline = (hours: SleepStatus[]) => {
-    const timeline: TimelineEvent[] = [];
-    let i = 0;
+const formatHour = (hour: number, date: Date) => {
+    const d = new Date(date);
+    d.setHours(hour, 0, 0, 0);
+    return format(d, 'ha');
+};
 
-    while (i < 24) {
-        const currentStatus = hours[i];
+
+const generateOvernightReport = (currentDayLog: SleepLog | undefined, previousDayLog: SleepLog | undefined, date: Date): OvernightSleepReport => {
+    // We define an overnight period from 6 PM (hour 18) of the previous day to 6 PM of the current day.
+    const prevHours = previousDayLog?.hours.slice(18) || Array(6).fill('awake');
+    const currentHours = currentDayLog?.hours.slice(0, 18) || Array(18).fill('awake');
+    const overnightHours: SleepStatus[] = [...prevHours, ...currentHours];
+
+    let totalSleep = 0;
+    const timeline: OvernightSleepReport['timeline'] = [];
+
+    let i = 0;
+    while (i < overnightHours.length) {
+        const currentStatus = overnightHours[i];
         let j = i;
-        while (j < 24 && hours[j] === currentStatus) {
+        while (j < overnightHours.length && overnightHours[j] === currentStatus) {
             j++;
         }
+        
+        const duration = j - i;
+        // The hour index needs to wrap around from the previous day.
+        // 0-5 are 6pm-11pm prev day. 6-23 are 12am-5pm current day.
+        const startHour = (i + 18) % 24; 
+        const endHour = (j - 1 + 18) % 24;
+
+        timeline.push({
+            type: currentStatus,
+            start: startHour,
+            end: endHour,
+            duration: duration
+        });
 
         if (currentStatus === 'asleep') {
-            timeline.push({ type: 'sleep', start: i, end: j - 1 });
-        } else {
-            // Only add awake events if they are between sleep events
-            if (timeline.length > 0) {
-                 timeline.push({ type: 'awake', duration: j - i });
-            }
+            totalSleep += duration;
         }
+
         i = j;
     }
-    // If the last event is an awake event, it's not between two sleep events, so remove it.
-    if(timeline.length > 0 && timeline[timeline.length - 1].type === 'awake') {
-        timeline.pop();
-    }
     
-    return timeline;
+    // Filter out initial awake periods before the first sleep.
+    const firstSleepIndex = timeline.findIndex(e => e.type === 'sleep');
+    const processedTimeline = firstSleepIndex !== -1 ? timeline.slice(firstSleepIndex) : [];
+
+    // Filter out trailing awake periods after the last sleep.
+    const lastSleepIndex = processedTimeline.map(e => e.type).lastIndexOf('sleep');
+     if (lastSleepIndex !== -1) {
+        processedTimeline.splice(lastSleepIndex + 1);
+    }
+
+
+    return {
+        date,
+        totalSleep,
+        timeline: processedTimeline,
+    };
 };
+
   
 export default function ReportsPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -92,9 +126,6 @@ export default function ReportsPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
 
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-  const [sleepSummary, setSleepSummary] = useState<string | null>(null);
-
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'patients');
@@ -103,7 +134,6 @@ export default function ReportsPage() {
   const { data: patients, isLoading: isLoadingPatients } = useCollection<Patient>(patientsQuery);
 
   useEffect(() => {
-    setSleepSummary(null); // Reset summary when patient or date changes
     const fetchPatientData = async () => {
       if (!selectedPatientId || !firestore) {
         setPatientData(null);
@@ -158,11 +188,39 @@ export default function ReportsPage() {
     fetchPatientData();
   }, [selectedPatientId, firestore, patients, toast]);
   
+  const overnightSleepReports = useMemo(() => {
+    if (!patientData || !dateRange.from || !dateRange.to) return [];
+
+    const sleepLogMap = new Map(patientData.sleepLogs.map(log => [log.log_date, log]));
+    
+    const intervalDays = eachDayOfInterval({
+        start: new Date(dateRange.from),
+        end: new Date(dateRange.to)
+    });
+
+    return intervalDays.map(day => {
+        const currentDayStr = format(day, 'yyyy-MM-dd');
+        const prevDayStr = format(subDays(day, 1), 'yyyy-MM-dd');
+
+        const currentDayLog = sleepLogMap.get(currentDayStr);
+        const previousDayLog = sleepLogMap.get(prevDayStr);
+        
+        return generateOvernightReport(currentDayLog, previousDayLog, day);
+    });
+
+  }, [patientData, dateRange]);
+
+
   const filteredData = useMemo(() => {
     if (!patientData) return null;
 
     const { from, to } = dateRange;
-    if (!from || !to) return patientData;
+    if (!from || !to) {
+        return {
+            ...patientData,
+            sleepLogs: [], // Return empty sleep logs if no date range
+        };
+    }
     
     const interval = {
         start: startOfDay(new Date(from)),
@@ -170,14 +228,12 @@ export default function ReportsPage() {
     };
 
     const filteredRecords = patientData.records.filter(r => isWithinInterval(new Date(r.date), interval));
-    const filteredSleepLogs = patientData.sleepLogs.filter(l => isWithinInterval(new Date(l.log_date), interval));
     const filteredBehaviorEvents = patientData.behaviorEvents.filter(e => isWithinInterval(new Date(e.eventDateTime), interval));
-
 
     return {
         ...patientData,
         records: filteredRecords,
-        sleepLogs: filteredSleepLogs,
+        sleepLogs: patientData.sleepLogs, // pass all logs to be processed by overnight report memo
         behaviorEvents: filteredBehaviorEvents,
     };
   }, [patientData, dateRange]);
@@ -187,35 +243,6 @@ export default function ReportsPage() {
     // Set the data attribute on the body right before printing
     document.body.setAttribute('data-print-option', printOption);
     window.print();
-  };
-
-  const handleGenerateSummary = async () => {
-    if (!filteredData || filteredData.sleepLogs.length === 0) {
-        toast({
-            variant: "destructive",
-            title: "Not enough data",
-            description: "There is no sleep data in the selected range to generate a summary."
-        });
-        return;
-    }
-    setIsGeneratingSummary(true);
-    setSleepSummary(null);
-    try {
-        const result = await summarizeSleepLog({
-            patientName: filteredData.patient.name,
-            sleepLogs: filteredData.sleepLogs
-        });
-        setSleepSummary(result.summary);
-    } catch (error) {
-        console.error("AI sleep summary generation failed:", error);
-        toast({
-            variant: "destructive",
-            title: "AI Summary Failed",
-            description: "Could not generate a sleep summary at this time.",
-        });
-    } finally {
-        setIsGeneratingSummary(false);
-    }
   };
   
   const printLabels: Record<PrintOption, string> = {
@@ -416,75 +443,45 @@ export default function ReportsPage() {
                     <div className="flex items-center justify-between">
                         <CardTitle className="flex items-center gap-2 text-xl">
                             <Bed className="h-5 w-5" />
-                            Recent Sleep Logs
+                            Overnight Sleep Logs
                         </CardTitle>
-                        <Button 
-                            variant="outline" 
-                            size="sm"
-                            onClick={handleGenerateSummary}
-                            disabled={isGeneratingSummary}
-                            className="no-print"
-                        >
-                            {isGeneratingSummary ? (
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : (
-                                <Sparkles className="mr-2 h-4 w-4" />
-                            )}
-                            Generate AI Summary
-                        </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
-                    {(isGeneratingSummary || sleepSummary) && (
-                        <div className="mb-6">
-                            <h4 className="font-semibold mb-2">AI Summary</h4>
-                            {isGeneratingSummary && <p className="text-sm text-muted-foreground">Generating summary...</p>}
-                            {sleepSummary && (
-                                <div className="text-sm p-3 bg-muted/50 rounded-md">
-                                    <p>{sleepSummary}</p>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                   {filteredData.sleepLogs.length > 0 ? (
+                   {overnightSleepReports.length > 0 ? (
                         <div className="space-y-4">
-                            {filteredData.sleepLogs.map(log => {
-                                const timeline = getSleepTimeline(log.hours);
-                                const totalSleepHours = log.hours.filter(h => h === 'asleep').length;
-
-                                return (
-                                    <div key={log.id}>
-                                        <p className="font-semibold">{format(new Date(log.log_date), 'EEEE, MMMM d, yyyy')}</p>
-                                        
-                                        {timeline.length > 0 ? (
-                                            <div className="text-sm mt-1">
-                                                {timeline.map((event, index) => {
-                                                    if (event.type === 'sleep') {
-                                                        const sleepEndHour = (event.end + 1);
-                                                        return (
-                                                            <span key={`event-${index}`}>
-                                                                Sleep Period: {formatHour(event.start)} - {formatHour(sleepEndHour)}
-                                                            </span>
-                                                        );
-                                                    } else { // event.type === 'awake'
-                                                        return (
-                                                            <span key={`event-${index}`} className='font-semibold text-muted-foreground italic mx-2'>
-                                                                (Awake for {event.duration} hour{event.duration > 1 ? 's' : ''})
-                                                            </span>
-                                                        );
-                                                    }
-                                                })}
-                                                <p className="mt-2"><strong>Total Sleep:</strong> {totalSleepHours} hour{totalSleepHours === 1 ? '' : 's'}</p>
-                                            </div>
-                                        ) : (
-                                            <p className="text-sm">No sleep recorded for this day.</p>
-                                        )}
-
-                                        {log.notes && <p className="text-muted-foreground text-sm mt-1">Notes: {log.notes}</p>}
-                                        <Separator className="pt-2" />
-                                    </div>
-                                );
-                            })}
+                            {overnightSleepReports.map(report => (
+                                <div key={report.date.toISOString()}>
+                                    <p className="font-semibold">{format(report.date, 'EEEE, MMMM d, yyyy')}</p>
+                                    
+                                    {report.timeline.length > 0 ? (
+                                        <div className="text-sm mt-1">
+                                            {report.timeline.map((event, index) => {
+                                                const eventDate = event.start >= 18 ? subDays(report.date, 1) : report.date;
+                                                if (event.type === 'sleep') {
+                                                    const endHour = (event.end + 1);
+                                                    const endDate = endHour >= 18 ? subDays(report.date, 1) : (endHour < startOfDay(eventDate).getHours() ? report.date : eventDate);
+                                                    return (
+                                                        <span key={`event-${index}`} className="font-medium">
+                                                            Sleep: {formatHour(event.start, eventDate)} - {formatHour(endHour, endDate)}
+                                                        </span>
+                                                    );
+                                                } else { // event.type === 'awake'
+                                                    return (
+                                                        <span key={`event-${index}`} className='font-semibold text-muted-foreground italic mx-2'>
+                                                            (Awake for {event.duration} hr{event.duration > 1 ? 's' : ''})
+                                                        </span>
+                                                    );
+                                                }
+                                            })}
+                                            <p className="mt-2"><strong>Total Sleep:</strong> {report.totalSleep} hour{report.totalSleep === 1 ? '' : 's'}</p>
+                                        </div>
+                                    ) : (
+                                        <p className="text-sm text-muted-foreground">No significant sleep recorded for this night.</p>
+                                    )}
+                                    <Separator className="pt-2" />
+                                </div>
+                            ))}
                         </div>
                     ) : (
                         <p className="text-muted-foreground text-center py-4">No sleep logs found for the selected date range.</p>
@@ -536,9 +533,5 @@ export default function ReportsPage() {
       )}
     </div>
   );
-
-    
-
-
 
     
