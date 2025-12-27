@@ -20,7 +20,7 @@ import {
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
 import type { Patient, Task, SleepLog, BehaviorEvent } from '@/lib/data';
-import { Loader2, User, Printer, Calendar, Bed, Activity, ChevronDown, MessageSquare } from 'lucide-react';
+import { Loader2, User, Printer, Calendar, Bed, Activity, ChevronDown, MessageSquare, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { differenceInYears, parseISO, format, isWithinInterval, startOfDay, endOfDay } from 'date-fns';
@@ -34,6 +34,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from '@/components/ui/input';
+import { summarizeSleepLog } from '@/ai/flows/summarize-sleep-log';
 
 type PrintOption = "all" | "care" | "sleep" | "behavior";
 type SleepStatus = 'awake' | 'asleep';
@@ -91,6 +92,9 @@ export default function ReportsPage() {
   const { toast } = useToast();
   const firestore = useFirestore();
 
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [sleepSummary, setSleepSummary] = useState<string | null>(null);
+
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'patients');
@@ -99,6 +103,7 @@ export default function ReportsPage() {
   const { data: patients, isLoading: isLoadingPatients } = useCollection<Patient>(patientsQuery);
 
   useEffect(() => {
+    setSleepSummary(null); // Reset summary when patient or date changes
     const fetchPatientData = async () => {
       if (!selectedPatientId || !firestore) {
         setPatientData(null);
@@ -182,6 +187,35 @@ export default function ReportsPage() {
     // Set the data attribute on the body right before printing
     document.body.setAttribute('data-print-option', printOption);
     window.print();
+  };
+
+  const handleGenerateSummary = async () => {
+    if (!filteredData || filteredData.sleepLogs.length === 0) {
+        toast({
+            variant: "destructive",
+            title: "Not enough data",
+            description: "There is no sleep data in the selected range to generate a summary."
+        });
+        return;
+    }
+    setIsGeneratingSummary(true);
+    setSleepSummary(null);
+    try {
+        const result = await summarizeSleepLog({
+            patientName: filteredData.patient.name,
+            sleepLogs: filteredData.sleepLogs
+        });
+        setSleepSummary(result.summary);
+    } catch (error) {
+        console.error("AI sleep summary generation failed:", error);
+        toast({
+            variant: "destructive",
+            title: "AI Summary Failed",
+            description: "Could not generate a sleep summary at this time.",
+        });
+    } finally {
+        setIsGeneratingSummary(false);
+    }
   };
   
   const printLabels: Record<PrintOption, string> = {
@@ -379,12 +413,39 @@ export default function ReportsPage() {
             {/* Sleep Logs Card */}
             <Card className="printable-card print-section print-sleep">
                 <CardHeader>
-                    <CardTitle className="flex items-center gap-2 text-xl">
-                        <Bed className="h-5 w-5" />
-                        Recent Sleep Logs
-                    </CardTitle>
+                    <div className="flex items-center justify-between">
+                        <CardTitle className="flex items-center gap-2 text-xl">
+                            <Bed className="h-5 w-5" />
+                            Recent Sleep Logs
+                        </CardTitle>
+                        <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={handleGenerateSummary}
+                            disabled={isGeneratingSummary}
+                            className="no-print"
+                        >
+                            {isGeneratingSummary ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            ) : (
+                                <Sparkles className="mr-2 h-4 w-4" />
+                            )}
+                            Generate AI Summary
+                        </Button>
+                    </div>
                 </CardHeader>
                 <CardContent>
+                    {(isGeneratingSummary || sleepSummary) && (
+                        <div className="mb-6">
+                            <h4 className="font-semibold mb-2">AI Summary</h4>
+                            {isGeneratingSummary && <p className="text-sm text-muted-foreground">Generating summary...</p>}
+                            {sleepSummary && (
+                                <div className="text-sm p-3 bg-muted/50 rounded-md">
+                                    <p>{sleepSummary}</p>
+                                </div>
+                            )}
+                        </div>
+                    )}
                    {filteredData.sleepLogs.length > 0 ? (
                         <div className="space-y-4">
                             {filteredData.sleepLogs.map(log => {

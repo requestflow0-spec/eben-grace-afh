@@ -5,3 +5,4 @@ config();
 import '@/ai/flows/generate-progress-report.ts';
 import '@/ai/flows/suggest-report-improvements.ts';
 import '@/ai/flows/generate-behavior-comment.ts';
+import '@/ai/flows/summarize-sleep-log.ts';
