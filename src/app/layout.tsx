@@ -6,7 +6,7 @@ import { FirebaseClientProvider } from '@/firebase';
 import { ThemeProvider } from '@/components/theme-provider';
 
 export const metadata: Metadata = {
-  title: 'CareHub Pro',
+  title: 'Eben Grace AFH',
   description: 'Streamlining care with intuitive management and AI-powered insights.',
 };
 

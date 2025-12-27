@@ -18,7 +18,7 @@ import {
 } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { CareHubLogo } from '@/components/icons';
+import { AppLogo } from '@/components/icons';
 import { useToast } from '@/hooks/use-toast';
 
 export default function SignupPage() {
@@ -146,8 +146,8 @@ export default function SignupPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center items-center gap-2 mb-4">
-            <CareHubLogo className="h-8 w-8 text-primary" />
-            <CardTitle className="text-3xl font-headline">CareHub Pro</CardTitle>
+            <AppLogo className="h-8 w-8 text-primary" />
+            <CardTitle className="text-3xl font-headline">Eben Grace AFH</CardTitle>
           </div>
           <CardDescription>
             Create your account to get started.

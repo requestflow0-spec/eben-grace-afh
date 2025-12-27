@@ -34,7 +34,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { CareHubLogo } from '@/components/icons';
+import { AppLogo } from '@/components/icons';
 import {
   LayoutDashboard,
   Users,
@@ -87,7 +87,7 @@ export default function DashboardLayout({
     return (
       <div className="flex h-screen w-screen items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <CareHubLogo className="size-12 text-primary animate-pulse" />
+          <AppLogo className="size-12 text-primary animate-pulse" />
           <p className="text-muted-foreground">Loading your dashboard...</p>
         </div>
       </div>
@@ -102,14 +102,14 @@ export default function DashboardLayout({
             href="/dashboard"
             className="flex items-center gap-2 font-bold group-data-[collapsible=icon]:hidden"
           >
-            <CareHubLogo className="size-6 text-primary" />
-            <span className="text-lg font-headline">CareHub Pro</span>
+            <AppLogo className="size-6 text-primary" />
+            <span className="text-lg font-headline">Eben Grace AFH</span>
           </Link>
           <Link
             href="/dashboard"
             className="hidden items-center gap-2 font-bold group-data-[collapsible=icon]:flex"
           >
-            <CareHubLogo className="size-6 text-primary" />
+            <AppLogo className="size-6 text-primary" />
           </Link>
         </SidebarHeader>
         <SidebarContent>
