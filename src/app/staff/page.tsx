@@ -26,8 +26,8 @@ import { Plus, Search, Mail, Users } from 'lucide-react';
 import { type Staff } from '@/lib/data';
 import { useToast } from '@/hooks/use-toast';
 import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
-import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { useRole } from '@/hooks/useRole';
+import { collection, addDoc, serverTimestamp, writeBatch } from 'firebase/firestore';
+import { useRole } from '@/hooks/use-role';
 import { Skeleton } from '@/components/ui/skeleton';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -53,33 +53,31 @@ function AddStaffDialog() {
     }
 
     setIsSubmitting(true);
+    
+    try {
+        const staffCollection = collection(firestore, 'staff');
+        
+        // Firestore generates a new ID locally first
+        const newStaffDocRef = doc(staffCollection);
 
-    const staffInvitation = {
-        name,
-        email,
-        status: 'pending',
-        // Fill in default/empty values for other required fields
-        id: '', // This will be updated upon user signup
-        role: 'staff',
-        phone: '',
-        schedule: 'Not Set',
-        certifications: [],
-        available: false,
-        avatarUrl: `https://picsum.photos/seed/${email}/200/200`,
-        avatarHint: 'person professional',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-    };
+        const staffInvitation = {
+            name,
+            email,
+            status: 'pending',
+            id: newStaffDocRef.id, // Use the generated ID
+            role: 'staff',
+            phone: '',
+            schedule: 'Not Set',
+            certifications: [],
+            available: false,
+            avatarUrl: `https://picsum.photos/seed/${email}/200/200`,
+            avatarHint: 'person professional',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+        };
 
-    const staffCollection = collection(firestore, 'staff');
-    addDoc(staffCollection, staffInvitation).catch(async (serverError) => {
-        const permissionError = new FirestorePermissionError({
-            path: staffCollection.path,
-            operation: 'create',
-            requestResourceData: staffInvitation,
-        });
-        errorEmitter.emit('permission-error', permissionError);
-    }).then(() => {
+        await setDoc(newStaffDocRef, staffInvitation);
+
         toast({
           title: "Invitation Sent",
           description: `${name} has been invited. They need to sign up with ${email} to activate their account.`,
@@ -87,9 +85,22 @@ function AddStaffDialog() {
         setOpen(false);
         setName('');
         setEmail('');
-    }).finally(() => {
+
+    } catch(serverError) {
+        const permissionError = new FirestorePermissionError({
+            path: 'staff',
+            operation: 'create',
+            requestResourceData: { email, name }, // Just include relevant data
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        toast({
+            variant: 'destructive',
+            title: 'Failed to send invitation',
+            description: 'You may not have the required permissions.',
+        });
+    } finally {
         setIsSubmitting(false);
-    });
+    }
   };
 
   return (
@@ -152,8 +163,10 @@ function AddStaffDialog() {
 
 function StaffCard({ member }: { member: Staff }) {
   const isPending = member.status === 'pending';
+  const linkHref = isPending ? '#' : `/staff/${member.id}`;
+  
   return (
-    <Link href={`/staff/${member.id}`} className={isPending ? 'pointer-events-none' : ''}>
+    <Link href={linkHref} className={isPending ? 'pointer-events-none' : ''}>
       <Card className="hover:bg-muted/50 transition-colors h-full">
         <CardContent className="p-4">
           <div className="flex items-start gap-4">

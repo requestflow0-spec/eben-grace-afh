@@ -204,7 +204,6 @@ function StaffDetailPageContent({
 
   const patientsQuery = useMemoFirebase(() => {
     if (!firestore || !id) return null;
-    console.log('Route id:', id);
     return query(collection(firestore, 'patients'), where('assignedStaff', 'array-contains', id));
   }, [firestore, id]);
   
