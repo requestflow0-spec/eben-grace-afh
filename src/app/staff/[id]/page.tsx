@@ -41,7 +41,7 @@ import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useFirestore, useDoc, useCollection, useMemoFirebase } from '@/firebase';
-import { doc, collection } from 'firebase/firestore';
+import { doc, collection, query, where } from 'firebase/firestore';
 import type { Staff, Patient } from '@/lib/data';
 import { useRole } from '@/hooks/useRole';
 import DashboardLayout from '../../dashboard/layout';
@@ -203,17 +203,11 @@ function StaffDetailPageContent({
   const { data: member, isLoading: isStaffLoading } = useDoc<Staff>(staffDocRef);
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'patients');
-  }, [firestore]);
+    if (!firestore || !id) return null;
+    return query(collection(firestore, 'patients'), where('assignedStaff', 'array-contains', id));
+  }, [firestore, id]);
   
-  const { data: patients, isLoading: arePatientsLoading } = useCollection<Patient>(patientsQuery);
-
-  const assignedPatients = useMemo(() => {
-    if (!patients || !id) return [];
-    return patients.filter(p => p.assignedStaff?.includes(id));
-  }, [patients, id]);
-
+  const { data: assignedPatients, isLoading: arePatientsLoading } = useCollection<Patient>(patientsQuery);
 
   const canEdit = role === 'admin';
   
@@ -359,7 +353,7 @@ function StaffDetailPageContent({
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {assignedPatients.length > 0 ? (
+            {assignedPatients && assignedPatients.length > 0 ? (
               <div className="space-y-2">
                 {assignedPatients.map(patient => (
                   <Link key={patient.id} href={`/patients/${patient.id}`}>
