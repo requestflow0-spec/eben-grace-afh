@@ -56,13 +56,17 @@ export type Task = {
   path?: string; // Path of the document in Firestore
 };
 
+export type SleepLog = {
+    id: string;
+    patientId: string;
+    log_date: string;
+    hours: ('awake' | 'asleep')[];
+    notes: string;
+}
+
 // This mock data is kept for reference but is no longer used in the main pages.
 // The app now fetches live data from Firestore.
 export const patients: Patient[] = [];
 export const staff: Staff[] = [];
 export const appointments: Appointment[] = [];
 export const tasks: Task[] = [];
-
-    
-
-    
