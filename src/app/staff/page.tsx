@@ -247,7 +247,7 @@ function StaffPageContent() {
             <StaffCard key={member.id} member={member} />
           ))}
         </div>
-      ) : (
+      ) : ( 
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Users className="h-12 w-12 text-muted-foreground/50 mb-4" />

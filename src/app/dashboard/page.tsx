@@ -252,16 +252,47 @@ export default function DashboardPage() {
   const staffQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'staff');
+
   }, [firestore]);
 
   const { data: staffData } = useCollection<Staff>(staffQuery);
 
   // This query will not work as intended for subcollections without a collection group query.
   // It is being reverted as requested.
+  // const allRecordsQuery = useMemoFirebase(() => {
+  //   if (!firestore) return null;
+  // // Use a collection group query to get all daily records across all patients.
+  //   return query(
+  //     collectionGroup(firestore, 'dailyRecords'), 
+  //     orderBy('date', 'desc'),
+  //     limit(20) // Limit to a reasonable number for the dashboard
+  //   );
+  //   // return query(collection(firestore, 'dailyRecords'), orderBy('date', 'desc'), limit(20));
+  // }, [firestore]);
+  
+  // if (!firestore) return null;
+  // Use a collection group query to get all daily records across all patients.
+  
   const allRecordsQuery = useMemoFirebase(() => {
     if (!firestore) return null;
-    return query(collection(firestore, 'dailyRecords'), orderBy('date', 'desc'), limit(20));
+    
+    console.log('Creating collection group query for dailyRecords');
+    
+    try {
+      const q = query(
+        collectionGroup(firestore, 'dailyRecords'), 
+        orderBy('date', 'desc'),
+        limit(20)
+      );
+      console.log('Query created successfully');
+      // return q;
+      return null;
+    } catch (error) {
+      console.error('Error creating query:', error);
+      return null;
+    }
   }, [firestore]);
+
   
   const { data: allRecords } = useCollection<Task>(allRecordsQuery);
 

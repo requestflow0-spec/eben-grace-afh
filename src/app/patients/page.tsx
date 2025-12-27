@@ -156,7 +156,7 @@ function PatientsPageContent() {
           <CardContent className="py-12 text-center">
             <User className="mx-auto mb-4 h-10 w-10 opacity-40" />
             <h3 className="font-semibold text-lg mb-1">No patients found</h3>
-            <p className="text-muted-foreground text-center max-w-sm">
+            <p className="text-muted-foreground text-center max-w-sm mx-auto">
               {search
                 ? 'No patients match your search criteria.'
                 : role === 'admin' ? 'Add your first patient to get started.' : 'There are no patients in the system yet.'}
