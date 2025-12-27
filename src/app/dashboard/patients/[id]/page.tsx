@@ -192,14 +192,12 @@ function LogBehaviorDialog() {
                     <FormField control={form.control} name="behavior" render={({ field }) => (
                         <FormItem>
                             <FormLabel>Behavior Type</FormLabel>
-                            <FormControl>
-                                <MultiSelect
-                                    options={["Eloping", "Wandering", "Rummaging"]}
-                                    selected={field.value}
-                                    onChange={field.onChange}
-                                    placeholder="Select behavior(s)..."
-                                />
-                            </FormControl>
+                             <MultiSelect
+                                options={["Eloping", "Wandering", "Rummaging", "Verbal Aggression", "Physical Aggression", "Self-harm"]}
+                                selected={field.value}
+                                onChange={field.onChange}
+                                placeholder="Select behavior(s)..."
+                            />
                             <FormMessage />
                         </FormItem>
                     )} />
