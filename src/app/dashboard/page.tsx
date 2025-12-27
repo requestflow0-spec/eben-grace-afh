@@ -36,6 +36,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
+import { AddPatientDialog } from '@/components/AddPatientDialog';
 
 function StatCard({
   title,
@@ -334,12 +335,12 @@ export default function DashboardPage() {
             </Button>
             {role === 'admin' && (
               <>
-                <Button asChild variant="secondary" className="h-auto py-4 flex-col gap-2">
-                  <Link href="/patients">
+                <AddPatientDialog>
+                  <Button variant="secondary" className="h-auto py-4 flex-col gap-2">
                     <Users className="h-5 w-5" />
                     <span>Add Patient</span>
-                  </Link>
-                </Button>
+                  </Button>
+                </AddPatientDialog>
                 <Button asChild variant="secondary" className="h-auto py-4 flex-col gap-2">
                   <Link href="/reports">
                     <TrendingUp className="h-5 w-5" />
@@ -366,5 +367,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
