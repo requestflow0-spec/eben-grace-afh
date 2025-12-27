@@ -646,6 +646,7 @@ export default function PatientDetailPage({
 }) {
   const { id } = use(params);
   const firestore = useFirestore();
+  const { user } = useUser();
   const { role } = useRole();
   const { toast } = useToast();
 
@@ -658,7 +659,7 @@ export default function PatientDetailPage({
 
   const recordsQuery = useMemoFirebase(() => {
       if (!firestore || !id) return null;
-      return collection(firestore, `patients/${id}/dailyRecords`);
+      return query(collection(firestore, `patients/${id}/dailyRecords`), orderBy('date', 'desc'));
   }, [firestore, id]);
 
   const { data: tasks, isLoading: areTasksLoading } = useCollection<Task>(recordsQuery);
@@ -742,7 +743,7 @@ export default function PatientDetailPage({
   };
 
   const handleCreateTodayRecord = () => {
-    if (!firestore || !id || !newRecordDescription) return;
+    if (!firestore || !id || !newRecordDescription || !user) return;
     const recordsRef = collection(firestore, `patients/${id}/dailyRecords`);
     const newRecord = {
         description: newRecordDescription,
@@ -750,6 +751,10 @@ export default function PatientDetailPage({
         patientId: id,
         date: new Date().toISOString(),
         completed: false,
+        createdBy: {
+          uid: user.uid,
+          name: user.displayName || 'Unknown Staff',
+        }
     };
     addDoc(recordsRef, newRecord).catch(async (serverError) => {
         const permissionError = new FirestorePermissionError({
@@ -1066,7 +1071,10 @@ export default function PatientDetailPage({
                 <TabsContent value="care-records">
                     {tasks && tasks.length > 0 ? (
                       <div className="space-y-2">
-                        {tasks.map(task => (
+                        {tasks.map(task => {
+                          const staffMember = staffData?.find(s => s.id === task.createdBy.uid);
+                          const creatorName = staffMember?.name || task.createdBy.name;
+                          return (
                             <div
                               key={task.id}
                               className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 transition-colors"
@@ -1084,9 +1092,7 @@ export default function PatientDetailPage({
                                     {task.description}
                                   </p>
                                   <p className="text-xs text-muted-foreground mt-1">
-                                    By{' '}
-                                    {(staffData || []).find(s => s.role === 'Nurse')
-                                      ?.name || 'Unknown'}
+                                    By {creatorName}
                                   </p>
                                 </div>
                               </div>
@@ -1103,7 +1109,8 @@ export default function PatientDetailPage({
                                 {task.completed ? 'Completed' : 'Pending'}
                               </Badge>
                             </div>
-                          ))}
+                          )
+                        })}
                       </div>
                     ) : (
                       <div className="text-center py-8 text-muted-foreground">
@@ -1294,5 +1301,3 @@ export default function PatientDetailPage({
     </div>
   );
 }
-
-    

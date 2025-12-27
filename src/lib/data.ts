@@ -54,6 +54,10 @@ export type Task = {
   date: string;
   completed: boolean;
   path?: string; // Path of the document in Firestore
+  createdBy: {
+    uid: string;
+    name: string;
+  };
 };
 
 export type SleepLog = {
