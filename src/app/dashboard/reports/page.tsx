@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useState } from 'react';
@@ -39,7 +40,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { patients } from '@/lib/data';
+import { useFirestore, useCollection, useMemoFirebase } from '@/firebase';
+import { collection } from 'firebase/firestore';
+import type { Patient } from '@/lib/data';
 import { Loader2, Wand2, RefreshCw, FileText, Bed } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
@@ -66,6 +69,14 @@ export default function ReportsPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const { toast } = useToast();
+  const firestore = useFirestore();
+
+  const patientsQuery = useMemoFirebase(() => {
+    if (!firestore) return null;
+    return collection(firestore, 'patients');
+  }, [firestore]);
+
+  const { data: patients, isLoading: isLoadingPatients } = useCollection<Patient>(patientsQuery);
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
@@ -78,9 +89,10 @@ export default function ReportsPage() {
   });
 
   const handlePatientChange = (patientId: string) => {
-    const patient = patients.find(p => p.id === patientId);
+    const patient = patients?.find(p => p.id === patientId);
     if (patient) {
       form.setValue('patientId', patientId);
+      // You could pre-fill other fields here based on patient data if needed
     }
   };
 
@@ -88,7 +100,7 @@ export default function ReportsPage() {
     setIsGenerating(true);
     setReportResult(null);
     setSuggestions(null);
-    const patient = patients.find(p => p.id === data.patientId);
+    const patient = patients?.find(p => p.id === data.patientId);
 
     if (!patient) {
       toast({
@@ -102,8 +114,8 @@ export default function ReportsPage() {
 
     const input: GenerateProgressReportInput = {
       patientName: patient.name,
-      medicalHistory: patient.medicalHistory,
-      carePlan: patient.carePlan,
+      medicalHistory: patient.medicalHistory || 'No history provided',
+      carePlan: patient.careNeeds || 'No care plan provided',
       dailyActivities: data.dailyActivities,
       medicationAdministration: data.medicationAdministration,
       relevantObservations: data.relevantObservations,
@@ -164,14 +176,14 @@ export default function ReportsPage() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Patient</FormLabel>
-                      <Select onValueChange={handlePatientChange} defaultValue={field.value}>
+                      <Select onValueChange={handlePatientChange} defaultValue={field.value} disabled={isLoadingPatients}>
                         <FormControl>
                           <SelectTrigger>
-                            <SelectValue placeholder="Select a patient" />
+                            <SelectValue placeholder={isLoadingPatients ? "Loading patients..." : "Select a patient"} />
                           </SelectTrigger>
                         </FormControl>
                         <SelectContent>
-                          {patients.map(p => (
+                          {patients?.map(p => (
                             <SelectItem key={p.id} value={p.id}>
                               {p.name}
                             </SelectItem>
@@ -308,3 +320,5 @@ export default function ReportsPage() {
     </div>
   );
 }
+
+    
