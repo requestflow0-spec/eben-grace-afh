@@ -1,7 +1,7 @@
 
 'use client';
 
-import { useState, use, useMemo } from 'react';
+import { useState, use, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import {
   Activity,
@@ -35,7 +35,7 @@ import { useForm, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
-import { type Task, type Staff, type BehaviorEvent } from '@/lib/data';
+import { type Task, type Staff, type BehaviorEvent, type SleepLog } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -69,7 +69,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useFirestore, useDoc, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { doc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove, query, orderBy } from 'firebase/firestore';
+import { doc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove, query, orderBy, setDoc } from 'firebase/firestore';
 import type { Patient } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -410,22 +410,79 @@ function LogBehaviorDialog({ patientId }: { patientId: string }) {
 }
 
 
-function SleepLogViewer() {
+function SleepLogViewer({ patientId }: { patientId: string }) {
     const [selectedDate, setSelectedDate] = useState(new Date());
     const [hours, setHours] = useState<SleepStatus[]>(Array(24).fill('awake'));
     const [notes, setNotes] = useState('');
     const [isDirty, setIsDirty] = useState(false);
+    const [isSaving, setIsSaving] = useState(false);
+    const firestore = useFirestore();
+    const { toast } = useToast();
+
+    const logId = useMemo(() => format(selectedDate, 'yyyy-MM-dd'), [selectedDate]);
+
+    const sleepLogRef = useMemoFirebase(() => {
+        if (!firestore || !patientId) return null;
+        return doc(firestore, `patients/${patientId}/sleepLogs`, logId);
+    }, [firestore, patientId, logId]);
+
+    const { data: sleepLog, isLoading: isLoadingLog } = useDoc<SleepLog>(sleepLogRef);
+
+    useEffect(() => {
+        if (isLoadingLog) return;
+        if (sleepLog) {
+            setHours(sleepLog.hours);
+            setNotes(sleepLog.notes);
+            setIsDirty(false);
+        } else {
+            setHours(Array(24).fill('awake'));
+            setNotes('');
+            setIsDirty(false);
+        }
+    }, [sleepLog, isLoadingLog, logId]);
 
     const handleHourToggle = (hour: number) => {
-        const newHours = [...hours];
-        newHours[hour] = newHours[hour] === 'asleep' ? 'awake' : 'asleep';
-        setHours(newHours);
+        setHours(currentHours => {
+            const newHours = [...currentHours];
+            newHours[hour] = newHours[hour] === 'asleep' ? 'awake' : 'asleep';
+            return newHours;
+        });
+        setIsDirty(true);
+    };
+
+    const handleNotesChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+        setNotes(e.target.value);
         setIsDirty(true);
     };
 
     const handleSave = () => {
-        setIsDirty(false);
-        // In a real app, you would save this data.
+        if (!sleepLogRef) return;
+        setIsSaving(true);
+        
+        const logData: Omit<SleepLog, 'id'> = {
+            patientId,
+            log_date: format(selectedDate, 'yyyy-MM-dd'),
+            hours,
+            notes
+        };
+
+        setDoc(sleepLogRef, logData, { merge: true })
+            .then(() => {
+                toast({ title: "Sleep log saved." });
+                setIsDirty(false);
+            })
+            .catch((serverError) => {
+                const permissionError = new FirestorePermissionError({
+                    path: sleepLogRef.path,
+                    operation: 'write',
+                    requestResourceData: logData,
+                });
+                errorEmitter.emit('permission-error', permissionError);
+                toast({ variant: 'destructive', title: "Save failed", description: "Could not save the sleep log." });
+            })
+            .finally(() => {
+                setIsSaving(false);
+            });
     };
     
     return (
@@ -445,64 +502,69 @@ function SleepLogViewer() {
                 </Button>
             </div>
 
-            <div className="space-y-4">
-                <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
-                    {HOURS.map((hour) => {
-                        const isAsleep = hours[hour] === 'asleep';
-                        return (
-                            <div
-                                key={hour}
-                                className={cn(
-                                    "flex flex-col items-center justify-center p-2 rounded-lg border cursor-pointer transition-colors",
-                                    isAsleep
-                                        ? "bg-primary/10 border-primary/50"
-                                        : "bg-secondary hover:bg-secondary/80",
-                                    "hover:border-primary/50"
-                                )}
-                                onClick={() => handleHourToggle(hour)}
-                            >
-                                <div className="text-xs font-mono text-muted-foreground mb-1">
-                                    {format(new Date(new Date().setHours(hour, 0)), 'ha')}
-                                </div>
-                                {isAsleep ? (
-                                    <Moon className="h-5 w-5 text-primary" />
-                                ) : (
-                                    <Sun className="h-5 w-5 text-yellow-500" />
-                                )}
-                                <span className="text-[10px] uppercase font-bold mt-1 tracking-wider">
-                                    {isAsleep ? 'Sleep' : 'Awake'}
-                                </span>
-                            </div>
-                        );
-                    })}
+            {isLoadingLog ? (
+                <div className="space-y-4">
+                    <Skeleton className="h-48 w-full" />
+                    <Skeleton className="h-24 w-full" />
                 </div>
+            ) : (
+                <>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 gap-2">
+                            {HOURS.map((hour) => {
+                                const isAsleep = hours[hour] === 'asleep';
+                                return (
+                                    <div
+                                        key={hour}
+                                        className={cn(
+                                            "flex flex-col items-center justify-center p-2 rounded-lg border cursor-pointer transition-colors",
+                                            isAsleep
+                                                ? "bg-primary/10 border-primary/50"
+                                                : "bg-secondary hover:bg-secondary/80",
+                                            "hover:border-primary/50"
+                                        )}
+                                        onClick={() => handleHourToggle(hour)}
+                                    >
+                                        <div className="text-xs font-mono text-muted-foreground mb-1">
+                                            {format(new Date(new Date().setHours(hour, 0)), 'ha')}
+                                        </div>
+                                        {isAsleep ? (
+                                            <Moon className="h-5 w-5 text-primary" />
+                                        ) : (
+                                            <Sun className="h-5 w-5 text-yellow-500" />
+                                        )}
+                                        <span className="text-[10px] uppercase font-bold mt-1 tracking-wider">
+                                            {isAsleep ? 'Sleep' : 'Awake'}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div className="flex items-start gap-2 text-sm text-muted-foreground p-3 bg-muted/50 rounded-lg">
+                            <AlertCircle className="h-4 w-4 mt-0.5" />
+                            <p>Tap on any hour block to toggle between Sleep and Awake states.</p>
+                        </div>
+                    </div>
 
-                <div className="flex items-start gap-2 text-sm text-muted-foreground p-3 bg-muted/50 rounded-lg">
-                    <AlertCircle className="h-4 w-4 mt-0.5" />
-                    <p>Tap on any hour block to toggle between Sleep and Awake states.</p>
-                </div>
-            </div>
+                    <div className="space-y-2">
+                        <Label htmlFor="sleep-notes">Daily Notes</Label>
+                        <Textarea
+                            id="sleep-notes"
+                            value={notes}
+                            onChange={handleNotesChange}
+                            placeholder="Any notes about sleep quality or disturbances..."
+                            rows={3}
+                        />
+                    </div>
 
-            <div className="space-y-2">
-                <Label htmlFor="sleep-notes">Daily Notes</Label>
-                <Textarea
-                    id="sleep-notes"
-                    value={notes}
-                    onChange={(e) => {
-                        setNotes(e.target.value);
-                        setIsDirty(true);
-                    }}
-                    placeholder="Any notes about sleep quality or disturbances..."
-                    rows={3}
-                />
-            </div>
-
-            <div className="flex justify-end pt-2">
-                <Button onClick={handleSave} disabled={!isDirty}>
-                    {false ? 'Saving...' : 'Save Sleep Log'}
-                    {isDirty && <Save className="ml-2 h-4 w-4" />}
-                </Button>
-            </div>
+                    <div className="flex justify-end pt-2">
+                        <Button onClick={handleSave} disabled={!isDirty || isSaving}>
+                            {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Save className="mr-2 h-4 w-4" />}
+                            {isSaving ? 'Saving...' : 'Save Sleep Log'}
+                        </Button>
+                    </div>
+                </>
+            )}
         </div>
     );
 }
@@ -1051,7 +1113,7 @@ export default function PatientDetailPage({
                     )}
                 </TabsContent>
                 <TabsContent value="sleep-log">
-                  <SleepLogViewer />
+                  <SleepLogViewer patientId={id}/>
                 </TabsContent>
                 <TabsContent value="behavior-tracking">
                 {behaviorEvents && behaviorEvents.length > 0 ? (
@@ -1232,3 +1294,5 @@ export default function PatientDetailPage({
     </div>
   );
 }
+
+    
