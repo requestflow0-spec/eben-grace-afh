@@ -14,6 +14,8 @@ import {
   Calendar,
   TrendingUp,
   UsersRound,
+  Plus,
+  Loader2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -21,9 +23,19 @@ import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import { useRole } from '@/hooks/useRole';
-import { useMemo } from 'react';
-import { collection, query, orderBy } from 'firebase/firestore';
+import { useMemo, useState } from 'react';
+import { collection, query, orderBy, addDoc, serverTimestamp } from 'firebase/firestore';
 import type { Patient, Task, Staff } from '@/lib/data';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger, DialogClose } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { useToast } from '@/hooks/use-toast';
+import { useNotifications } from '@/hooks/use-notifications';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Form, FormControl, FormField, FormItem, FormMessage } from '@/components/ui/form';
 
 function StatCard({
   title,
@@ -91,6 +103,137 @@ function RecentRecordsList({ records }: { records: Task[] | null }) {
       ))}
     </div>
   );
+}
+
+const createRecordSchema = z.object({
+    patientId: z.string().min(1, 'Please select a patient.'),
+    description: z.string().min(1, 'Description is required.'),
+});
+
+function CreateDailyRecordDialog({ patients }: { patients: Patient[] | null }) {
+    const [open, setOpen] = useState(false);
+    const firestore = useFirestore();
+    const { user } = useUser();
+    const { toast } = useToast();
+    const { addNotification } = useNotifications();
+
+    const form = useForm<z.infer<typeof createRecordSchema>>({
+        resolver: zodResolver(createRecordSchema),
+        defaultValues: {
+            patientId: '',
+            description: '',
+        },
+    });
+
+    const { isSubmitting } = form.formState;
+
+    const onSubmit = (values: z.infer<typeof createRecordSchema>) => {
+        if (!firestore || !user || !patients) return;
+
+        const selectedPatient = patients.find(p => p.id === values.patientId);
+        if (!selectedPatient) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Selected patient not found.' });
+            return;
+        }
+
+        const recordsRef = collection(firestore, `patients/${values.patientId}/dailyRecords`);
+        const newRecord = {
+            description: values.description,
+            patientName: selectedPatient.name,
+            patientId: values.patientId,
+            date: new Date().toISOString(),
+            completed: false,
+            createdBy: {
+                uid: user.uid,
+                name: user.displayName || 'Unknown Staff',
+            }
+        };
+
+        addDoc(recordsRef, newRecord).then(() => {
+            toast({ title: 'Record created successfully.' });
+            addNotification({
+                title: 'New Care Record Added',
+                description: `A new record for ${selectedPatient.name} has been added.`,
+                href: `/patients/${values.patientId}`,
+            });
+            form.reset();
+            setOpen(false);
+        }).catch((error) => {
+            console.error("Error creating record: ", error);
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not create the record.' });
+        });
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogTrigger asChild>
+                <Button className="h-auto py-4 flex-col gap-2">
+                    <ClipboardList className="h-5 w-5" />
+                    <span>Create Daily Record</span>
+                </Button>
+            </DialogTrigger>
+            <DialogContent>
+                <DialogHeader>
+                    <DialogTitle>Create New Care Record</DialogTitle>
+                    <DialogDescription>
+                        Log a new event, observation, or task for a patient.
+                    </DialogDescription>
+                </DialogHeader>
+                <Form {...form}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 py-4">
+                        <FormField
+                            control={form.control}
+                            name="patientId"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <Label>Patient</Label>
+                                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <FormControl>
+                                            <SelectTrigger>
+                                                <SelectValue placeholder="Select a patient..." />
+                                            </SelectTrigger>
+                                        </FormControl>
+                                        <SelectContent>
+                                            {patients?.map(p => (
+                                                <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <FormField
+                            control={form.control}
+                            name="description"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <Label>Description</Label>
+                                    <FormControl>
+                                        <Textarea
+                                            placeholder="e.g., Patient seemed more energetic today..."
+                                            rows={4}
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                        <DialogFooter>
+                            <DialogClose asChild>
+                                <Button type="button" variant="outline">Cancel</Button>
+                            </DialogClose>
+                            <Button type="submit" disabled={isSubmitting}>
+                                {isSubmitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin"/> : <Plus className="mr-2 h-4 w-4" />}
+                                Save Record
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </Form>
+            </DialogContent>
+        </Dialog>
+    );
 }
 
 export default function DashboardPage() {
@@ -182,12 +325,7 @@ export default function DashboardPage() {
             <CardTitle className="text-lg">Quick Actions</CardTitle>
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
-            <Button asChild className="h-auto py-4 flex-col gap-2">
-              <Link href="/records">
-                <ClipboardList className="h-5 w-5" />
-                <span>Create Daily Record</span>
-              </Link>
-            </Button>
+            <CreateDailyRecordDialog patients={patients} />
             <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
               <Link href="/patients">
                 <Users className="h-5 w-5" />

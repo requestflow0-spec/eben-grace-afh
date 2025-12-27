@@ -650,10 +650,11 @@ const editPatientSchema = z.object({
 function PatientDetailPageContent({
   params: paramsProp,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const params = use(Promise.resolve(paramsProp));
-  const { id } = params;
+
+  // const params = use(Promise.resolve(paramsProp));
+  const { id } = use(paramsProp);
   const firestore = useFirestore();
   const { user } = useUser();
   const { role } = useRole();
@@ -1329,7 +1330,7 @@ function PatientDetailPageContent({
 export default function PatientDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   return (
     <DashboardLayout>
@@ -1337,3 +1338,17 @@ export default function PatientDetailPage({
     </DashboardLayout>
   )
 }
+
+// export default function PatientDetailPage({
+//   params,
+// }: {
+//   params: Promise<{ id: string }>;
+// }) {
+//   // const resolvedParams = await params;
+  
+//   return (
+//     <DashboardLayout>
+//       <PatientDetailPageContent params={params} />
+//     </DashboardLayout>
+//   );
+// }

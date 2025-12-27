@@ -178,11 +178,11 @@ function StaffDetailSkeleton() {
 
 
 function StaffDetailPageContent({
-  params,
+  params: paramsProp,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
-  const { id } = params;
+  const { id } = use(paramsProp);
   const firestore = useFirestore();
   const { role } = useRole();
 
@@ -336,7 +336,7 @@ function StaffDetailPageContent({
 export default function StaffDetailPage({
   params,
 }: {
-  params: { id: string };
+  params: Promise<{ id: string }>;
 }) {
   return (
     <DashboardLayout>
@@ -344,5 +344,19 @@ export default function StaffDetailPage({
     </DashboardLayout>
   )
 }
+
+// export default async function StaffDetailPage({
+//   params,
+// }: {
+//   params: Promise<{ id: string }>;
+// }) {
+//   const resolvedParams = await params;
+  
+//   return (
+//     <DashboardLayout>
+//       <StaffDetailPageContent params={resolvedParams} />
+//     </DashboardLayout>
+//   );
+// }
 
     
