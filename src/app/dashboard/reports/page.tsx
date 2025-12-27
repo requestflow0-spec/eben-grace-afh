@@ -46,63 +46,77 @@ const formatHour = (hour: number) => {
   
 const getSleepSummary = (hours: SleepStatus[]) => {
     const sleepPeriods: { start: number; end: number; awakeIntervals: number[] }[] = [];
-    let currentPeriod: { start: number; end: number; awakeIntervals: number[] } | null = null;
-  
+    let currentPeriod: { start: number; awakeIntervals: number[] } | null = null;
+
+    // Iterate from hour 0 to 23 to find all sleep blocks
     for (let i = 0; i < 24; i++) {
-        const hour = (i + 20) % 24; // Start check from 8 PM
-      if (hours[hour] === 'asleep') {
-        if (!currentPeriod) {
-          currentPeriod = { start: hour, end: hour, awakeIntervals: [] };
-        } else {
-          currentPeriod.end = hour;
-        }
-      } else { // Awake
-        if (currentPeriod) {
-            // Check if awake time is within the current sleep period
-            const distanceToEnd = (hour - currentPeriod.end + 24) % 24;
-            if (distanceToEnd <= 2) { // Allow for short gaps
-                currentPeriod.awakeIntervals.push(hour);
-                currentPeriod.end = hour; 
-            } else {
-                sleepPeriods.push(currentPeriod);
+        if (hours[i] === 'asleep') {
+            if (currentPeriod === null) {
+                currentPeriod = { start: i, awakeIntervals: [] };
+            }
+        } else { // Awake
+            if (currentPeriod !== null) {
+                sleepPeriods.push({ ...currentPeriod, end: i - 1 });
                 currentPeriod = null;
             }
         }
-      }
     }
-  
-    if (currentPeriod) {
-        // Handle wrap-around period
-        const firstHour = (20) % 24;
-        if(sleepPeriods.length > 0 && sleepPeriods[0].start === firstHour && hours[firstHour] === 'asleep'){
-            const firstPeriod = sleepPeriods.shift()!;
-            currentPeriod.awakeIntervals.push(...firstPeriod.awakeIntervals)
-            currentPeriod.end = firstPeriod.end;
+    // If the loop ends and we are in a sleep period (e.g. asleep at hour 23)
+    if (currentPeriod !== null) {
+        sleepPeriods.push({ ...currentPeriod, end: 23 });
+    }
+
+    // Handle wrap-around periods (e.g., starts at 10 PM, ends at 6 AM)
+    if (sleepPeriods.length > 1) {
+        const lastPeriod = sleepPeriods[sleepPeriods.length - 1];
+        const firstPeriod = sleepPeriods[0];
+        // If last period ends at 23 and first starts at 0, merge them
+        if (lastPeriod.end === 23 && firstPeriod.start === 0) {
+            lastPeriod.end = firstPeriod.end; // New end time is from the first period
+            sleepPeriods.shift(); // Remove the now-merged first period
         }
-        sleepPeriods.push(currentPeriod);
     }
-    
-    // Process awake intervals to be only within start and end
-     sleepPeriods.forEach(p => {
-        p.awakeIntervals = p.awakeIntervals.filter(h => {
-            const end = p.end < p.start ? p.end + 24 : p.end;
-            const hour = h < p.start ? h + 24 : h;
-            return hour > p.start && hour < end;
-        });
-    });
-  
-    return sleepPeriods.map((period, index) => {
-        const totalHours = hours.filter(h => h === 'asleep').length;
-        const awakeTimes = period.awakeIntervals.map(formatHour).join(', ');
+
+    // Now, for each consolidated sleep period, find the awake intervals within it.
+    const detailedPeriods = sleepPeriods.map(period => {
+        const awakeIntervals: number[] = [];
+        let start = period.start;
+        let end = period.end;
         
+        // Handle wrapped period for iteration
+        if (end < start) { 
+            // from start to 23
+            for(let i = start; i <= 23; i++) {
+                if (hours[i] === 'awake') awakeIntervals.push(i);
+            }
+             // from 0 to end
+            for(let i = 0; i <= end; i++) {
+                if (hours[i] === 'awake') awakeIntervals.push(i);
+            }
+        } else {
+            // Normal period
+            for (let i = start; i <= end; i++) {
+                if (hours[i] === 'awake') {
+                    awakeIntervals.push(i);
+                }
+            }
+        }
+        return { ...period, awakeIntervals };
+    });
+
+    return detailedPeriods.map((period, index) => {
+        const totalHoursSlept = hours.filter(h => h === 'asleep').length;
+        const awakeTimes = period.awakeIntervals.map(formatHour).join(', ');
+        const sleepEndHour = (period.end + 1) % 24;
+
         return {
             key: `period-${index}`,
-            sleepPeriod: `${formatHour(period.start)} - ${formatHour((period.end + 1) % 24)}`,
+            sleepPeriod: `${formatHour(period.start)} - ${formatHour(sleepEndHour)}`,
             awakeTimes: awakeTimes || 'None',
-            totalHoursSlept: `${totalHours} hour(s)`
+            totalHoursSlept: `${totalHoursSlept} hour(s)`
         }
     });
-  };
+};
 
 export default function ReportsPage() {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
@@ -488,3 +502,4 @@ export default function ReportsPage() {
   );
 
     
+
