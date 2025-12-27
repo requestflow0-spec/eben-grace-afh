@@ -73,6 +73,20 @@ export type Notification = {
   href?: string;
 };
 
+export type BehaviorEvent = {
+  id: string;
+  patientId: string;
+  eventDateTime: string; // ISO string
+  behavior: string[];
+  intensity: string;
+  activity: string;
+  setting: string;
+  antecedent: string;
+  response: string;
+  comment?: string;
+};
+
+
 // This mock data is kept for reference but is no longer used in the main pages.
 // The app now fetches live data from Firestore.
 export const patients: Patient[] = [];

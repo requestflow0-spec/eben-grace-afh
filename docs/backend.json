@@ -79,6 +79,25 @@
         "href": { "type": "string", "description": "An optional URL to navigate to when the notification is clicked." }
       },
       "required": ["id", "title", "date", "read"]
+    },
+    "BehaviorEvent": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "BehaviorEvent",
+      "type": "object",
+      "description": "Represents a logged behavior event for a patient.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the behavior event." },
+        "patientId": { "type": "string", "description": "Reference to the Patient." },
+        "eventDateTime": { "type": "string", "description": "The date and time of the event.", "format": "date-time" },
+        "behavior": { "type": "array", "items": { "type": "string" }, "description": "The type(s) of behavior observed." },
+        "intensity": { "type": "string", "description": "The intensity of the behavior (e.g., low, medium, high)." },
+        "activity": { "type": "string", "description": "The activity the patient was engaged in." },
+        "setting": { "type": "string", "description": "The setting where the behavior occurred." },
+        "antecedent": { "type": "string", "description": "What happened immediately before the behavior." },
+        "response": { "type": "string", "description": "The intervention or response from staff." },
+        "comment": { "type": "string", "description": "A summary comment about the event." }
+      },
+      "required": ["id", "patientId", "eventDateTime", "behavior", "intensity", "activity", "setting", "response"]
     }
   },
   "auth": {
@@ -134,6 +153,14 @@
               "schema": { "$ref": "#/backend/entities/SleepLog" },
               "description": "Stores sleep logs for a specific patient."
           }
+      },
+      {
+        "path": "/patients/{patientId}/behaviorEvents/{behaviorEventId}",
+        "definition": {
+            "entityName": "BehaviorEvent",
+            "schema": { "$ref": "#/backend/entities/BehaviorEvent" },
+            "description": "Stores behavior events for a specific patient."
+        }
       },
       {
         "path": "/staff/{staffId}",

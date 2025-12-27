@@ -28,13 +28,14 @@ import {
   Sparkles,
   Loader2,
   Check,
+  MessageSquare,
 } from 'lucide-react';
 import { format, differenceInYears, parseISO, addDays, subDays, isSameDay } from 'date-fns';
 import { useForm, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
-import { type Task, type Staff } from '@/lib/data';
+import { type Task, type Staff, type BehaviorEvent } from '@/lib/data';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -68,7 +69,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { cn } from '@/lib/utils';
 import { useFirestore, useDoc, useCollection, useMemoFirebase, useUser } from '@/firebase';
-import { doc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove } from 'firebase/firestore';
+import { doc, collection, addDoc, serverTimestamp, updateDoc, deleteDoc, arrayUnion, arrayRemove, query, orderBy } from 'firebase/firestore';
 import type { Patient } from '@/lib/data';
 import { Skeleton } from '@/components/ui/skeleton';
 import { errorEmitter } from '@/firebase/error-emitter';
@@ -85,10 +86,11 @@ const HOURS = Array.from({ length: 24 }, (_, i) => i);
 
 const BEHAVIOR_OPTIONS = ["Eloping", "Wandering", "Rummaging", "Verbal Aggression", "Physical Aggression", "Self-harm"];
 
-function LogBehaviorDialog() {
+function LogBehaviorDialog({ patientId }: { patientId: string }) {
   const [open, setOpen] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
   const { toast } = useToast();
+  const firestore = useFirestore();
 
   const formSchema = z.object({
     behavior: z.array(z.string()).min(1, 'Please select at least one behavior.'),
@@ -133,7 +135,7 @@ function LogBehaviorDialog() {
       }
       
       const result = await generateBehaviorComment({
-        behavior: behavior,
+        behavior: behavior || [],
         intensity,
         activity,
         setting,
@@ -156,9 +158,38 @@ function LogBehaviorDialog() {
   
 
   const handleSave = (values: z.infer<typeof formSchema>) => {
-    console.log(values);
-    setOpen(false);
-    form.reset();
+    if (!firestore) return;
+  
+    const eventDateTime = new Date(`${values.eventDate}T${values.eventTime}`).toISOString();
+    
+    const newBehaviorEvent = {
+      patientId,
+      eventDateTime,
+      behavior: values.behavior,
+      intensity: values.intensity,
+      activity: values.activity,
+      setting: values.setting,
+      antecedent: values.antecedent,
+      response: values.response,
+      comment: values.comment || '',
+    };
+  
+    const behaviorEventsRef = collection(firestore, `patients/${patientId}/behaviorEvents`);
+    addDoc(behaviorEventsRef, newBehaviorEvent)
+      .then(() => {
+        toast({ title: "Behavior event saved successfully." });
+        setOpen(false);
+        form.reset();
+      })
+      .catch((serverError) => {
+        const permissionError = new FirestorePermissionError({
+          path: behaviorEventsRef.path,
+          operation: 'create',
+          requestResourceData: newBehaviorEvent,
+        });
+        errorEmitter.emit('permission-error', permissionError);
+        toast({ variant: 'destructive', title: "Save failed", description: "Could not save the behavior event." });
+      });
   };
   
   return (
@@ -201,7 +232,7 @@ function LogBehaviorDialog() {
                           <Dialog>
                             <DialogTrigger asChild>
                               <Button variant="outline" className="w-full justify-start text-left font-normal">
-                                {field.value.length > 0
+                                {field.value && field.value.length > 0
                                   ? field.value.join(', ')
                                   : "Select behavior(s)..."}
                               </Button>
@@ -223,10 +254,11 @@ function LogBehaviorDialog() {
                                             <Checkbox
                                               checked={checkboxField.value?.includes(option)}
                                               onCheckedChange={(checked) => {
+                                                const currentValue = checkboxField.value || [];
                                                 return checked
-                                                  ? checkboxField.onChange([...checkboxField.value, option])
+                                                  ? checkboxField.onChange([...currentValue, option])
                                                   : checkboxField.onChange(
-                                                      checkboxField.value?.filter(
+                                                      currentValue?.filter(
                                                         (value) => value !== option
                                                       )
                                                     )
@@ -569,6 +601,13 @@ export default function PatientDetailPage({
 
   const { data: tasks, isLoading: areTasksLoading } = useCollection<Task>(recordsQuery);
 
+  const behaviorEventsQuery = useMemoFirebase(() => {
+    if (!firestore || !id) return null;
+    return query(collection(firestore, `patients/${id}/behaviorEvents`), orderBy('eventDateTime', 'desc'));
+  }, [firestore, id]);
+
+  const { data: behaviorEvents, isLoading: areBehaviorEventsLoading } = useCollection<BehaviorEvent>(behaviorEventsQuery);
+
   const staffQuery = useMemoFirebase(() => {
     if (!firestore) return null;
     return collection(firestore, 'staff');
@@ -705,7 +744,7 @@ export default function PatientDetailPage({
     });
   };
 
-  const isLoading = isPatientLoading || areTasksLoading || areStaffLoading;
+  const isLoading = isPatientLoading || areTasksLoading || areStaffLoading || areBehaviorEventsLoading;
 
   if (isLoading) {
     return <PatientDetailSkeleton />;
@@ -957,7 +996,7 @@ export default function PatientDetailPage({
                         </Dialog>
                     )}
                     {activeTab === 'behavior-tracking' && (
-                        <LogBehaviorDialog />
+                        <LogBehaviorDialog patientId={id} />
                     )}
                   </div>
               </CardHeader>
@@ -1015,11 +1054,41 @@ export default function PatientDetailPage({
                   <SleepLogViewer />
                 </TabsContent>
                 <TabsContent value="behavior-tracking">
-                    <div className="text-center py-8 text-muted-foreground">
-                        <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
-                        <p className="font-semibold">No Behavior Events Logged</p>
-                        <p className="text-sm">Use the 'Log Behavior' button to add a new event.</p>
-                    </div>
+                {behaviorEvents && behaviorEvents.length > 0 ? (
+                      <div className="space-y-4">
+                        {behaviorEvents.map(event => (
+                          <div key={event.id} className="p-3 rounded-lg border">
+                            <div className="flex items-center justify-between">
+                              <p className="font-medium text-sm">
+                                {format(new Date(event.eventDateTime), 'EEEE, MMMM d, yyyy, p')}
+                              </p>
+                              <Badge variant="secondary">{event.intensity}</Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-1 mt-2">
+                                {event.behavior.map((b: string) => <Badge key={b}>{b}</Badge>)}
+                            </div>
+                            <div className="text-sm text-muted-foreground mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+                                <p><strong className="text-foreground">Activity:</strong> {event.activity}</p>
+                                <p><strong className="text-foreground">Setting:</strong> {event.setting}</p>
+                                <p><strong className="text-foreground">Antecedent:</strong> {event.antecedent}</p>
+                                <p><strong className="text-foreground">Response:</strong> {event.response}</p>
+                            </div>
+                            {event.comment && (
+                                <div className="mt-3 text-sm p-3 bg-muted/50 rounded-md flex items-start gap-2">
+                                    <MessageSquare className="h-4 w-4 text-muted-foreground mt-0.5 flex-shrink-0" />
+                                    <p>{event.comment}</p>
+                                </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-muted-foreground">
+                          <Activity className="h-12 w-12 mx-auto mb-3 opacity-50" />
+                          <p className="font-semibold">No Behavior Events Logged</p>
+                          <p className="text-sm">Use the 'Log Behavior' button to add a new event.</p>
+                      </div>
+                    )}
                 </TabsContent>
               </CardContent>
             </Card>
@@ -1163,8 +1232,3 @@ export default function PatientDetailPage({
     </div>
   );
 }
-
-
-
-    
-
