@@ -70,7 +70,7 @@ function RecentRecordsList({ records }: { records: Task[] | null }) {
       {records.map((record) => (
         <Link
           key={record.id}
-          href={`/dashboard/patients/${record.patientId}`}
+          href={`/patients/${record.patientId}`}
           className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-accent/50 transition-colors"
         >
           <div className="flex items-center gap-3">
@@ -183,13 +183,13 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="grid gap-3 sm:grid-cols-2">
             <Button asChild className="h-auto py-4 flex-col gap-2">
-              <Link href="/dashboard/records">
+              <Link href="/records">
                 <ClipboardList className="h-5 w-5" />
                 <span>Create Daily Record</span>
               </Link>
             </Button>
             <Button asChild variant="outline" className="h-auto py-4 flex-col gap-2">
-              <Link href="/dashboard/patients">
+              <Link href="/patients">
                 <Users className="h-5 w-5" />
                 <span>View Patients</span>
               </Link>
@@ -197,13 +197,13 @@ export default function DashboardPage() {
             {role === 'admin' && (
               <>
                 <Button asChild variant="secondary" className="h-auto py-4 flex-col gap-2">
-                  <Link href="/dashboard/patients">
+                  <Link href="/patients">
                     <Users className="h-5 w-5" />
                     <span>Add Patient</span>
                   </Link>
                 </Button>
                 <Button asChild variant="secondary" className="h-auto py-4 flex-col gap-2">
-                  <Link href="/dashboard/reports">
+                  <Link href="/reports">
                     <TrendingUp className="h-5 w-5" />
                     <span>Generate Report</span>
                   </Link>
@@ -217,7 +217,7 @@ export default function DashboardPage() {
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle className="text-lg">Recent Records</CardTitle>
             <Button asChild variant="ghost" size="sm">
-              <Link href="/dashboard/records">View all</Link>
+              <Link href="/records">View all</Link>
             </Button>
           </CardHeader>
           <CardContent>
@@ -228,3 +228,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    

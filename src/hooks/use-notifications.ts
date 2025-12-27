@@ -10,6 +10,8 @@ import {
   doc,
   writeBatch,
   serverTimestamp,
+  addDoc,
+  updateDoc
 } from 'firebase/firestore';
 import { useUser, useFirestore, useCollection, useMemoFirebase } from '@/firebase';
 import type { Notification } from '@/lib/data';
@@ -98,5 +100,4 @@ export function useNotifications() {
   };
 }
 
-// Re-export `updateDoc` and `addDoc` with error handling for convenience
-import { updateDoc, addDoc } from 'firebase/firestore';
+    

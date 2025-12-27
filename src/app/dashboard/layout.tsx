@@ -55,11 +55,11 @@ import { Notifications } from '@/components/Notifications';
 
 const allNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'staff'] },
-  { href: '/dashboard/patients', icon: Users, label: 'Patients', roles: ['admin', 'staff'] },
-  { href: '/dashboard/staff', icon: UsersRound, label: 'Staff', roles: ['admin'] },
-  { href: '/dashboard/records', icon: ClipboardList, label: 'Daily Records', roles: ['admin', 'staff'] },
-  { href: '/dashboard/reports', icon: FileText, label: 'Reports', roles: ['admin'] },
-  { href: '/dashboard/settings', icon: Settings, label: 'Settings', roles: ['admin', 'staff'] },
+  { href: '/patients', icon: Users, label: 'Patients', roles: ['admin', 'staff'] },
+  { href: '/staff', icon: UsersRound, label: 'Staff', roles: ['admin'] },
+  { href: '/records', icon: ClipboardList, label: 'Daily Records', roles: ['admin', 'staff'] },
+  { href: '/reports', icon: FileText, label: 'Reports', roles: ['admin'] },
+  { href: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'staff'] },
 ];
 
 export default function DashboardLayout({
@@ -281,3 +281,5 @@ function UserDropdown() {
 // This is a workaround for the TooltipProvider not being available in the server context
 const { TooltipProvider, Tooltip, TooltipTrigger, TooltipContent } =
   require('@/components/ui/tooltip') as typeof import('@/components/ui/tooltip');
+
+    
