@@ -54,11 +54,14 @@ service cloud.firestore {
 
     // --- Patient Rules ---
     match /patients/{patientId} {
-      // Admins and staff can read patient data.
-      allow get: if isAdmin() || isStaff();
-      allow list: if isAdmin() || isStaff();
+      // Admins and assigned staff can read a patient's data.
+      allow get: if isAdmin() || (isStaff() && request.auth.uid in resource.data.assignedStaff);
+      
+      // Only Admins can list all patients. Staff must query for their assigned patients.
+      allow list: if isAdmin();
 
       // Only admins and staff can write to a patient's records.
+      // This could be further restricted to only assigned staff.
       allow write: if isAdmin() || isStaff();
 
       // --- Subcollection Rules for Patients ---
@@ -73,6 +76,16 @@ service cloud.firestore {
         allow read, write: if isAdmin() || isStaff();
       }
     }
+    
+    // Rule for Collection Group Queries on 'dailyRecords'
+    match /{path=**}/dailyRecords/{recordId} {
+      // Allow list (for collection group query) if user is admin or staff.
+      // A more secure rule would check against the patient's assigned staff list,
+      // but that requires more complex rule logic.
+      // This rule is commented out as it was part of a reverted feature.
+      // allow list: if isAdmin() || isStaff();
+    }
+
 
     // --- Staff Rules ---
     match /staff/{staffId} {

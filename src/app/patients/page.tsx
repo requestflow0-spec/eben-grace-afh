@@ -5,6 +5,8 @@ import { useState, useMemo } from 'react';
 import Link from 'next/link';
 import {
   collection,
+  query,
+  where
 } from 'firebase/firestore';
 import { differenceInYears, parseISO } from 'date-fns';
 import {
@@ -30,6 +32,7 @@ import {
   useFirestore,
   useCollection,
   useMemoFirebase,
+  useUser,
 } from '@/firebase';
 import { useRole } from '@/hooks/useRole';
 
@@ -97,11 +100,25 @@ function PatientsPageContent() {
   const [search, setSearch] = useState('');
   const firestore = useFirestore();
   const { role } = useRole();
+  const { user } = useUser();
 
   const patientsQuery = useMemoFirebase(() => {
-    if (!firestore) return null;
-    return collection(firestore, 'patients');
-  }, [firestore]);
+    if (!firestore || !user) return null;
+    
+    const patientsCollection = collection(firestore, 'patients');
+    
+    // Admins can see all patients
+    if (role === 'admin') {
+      return patientsCollection;
+    }
+    
+    // Staff can only see patients they are assigned to
+    if (role === 'staff') {
+      return query(patientsCollection, where('assignedStaff', 'array-contains', user.uid));
+    }
+    
+    return null; // Return null if role is not determined yet
+  }, [firestore, user, role]);
 
   const { data: patients, isLoading } = useCollection<Patient>(patientsQuery);
 
@@ -159,7 +176,7 @@ function PatientsPageContent() {
             <p className="text-muted-foreground text-center max-w-sm mx-auto">
               {search
                 ? 'No patients match your search criteria.'
-                : role === 'admin' ? 'Add your first patient to get started.' : 'There are no patients in the system yet.'}
+                : role === 'admin' ? 'Add your first patient to get started.' : 'You have not been assigned to any patients yet.'}
             </p>
           </CardContent>
         </Card>
