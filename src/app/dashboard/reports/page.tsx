@@ -218,7 +218,9 @@ export default function ReportsPage() {
     if (!from || !to) {
         return {
             ...patientData,
-            sleepLogs: [], // Return empty sleep logs if no date range
+            records: [],
+            sleepLogs: [],
+            behaviorEvents: [],
         };
     }
     
@@ -386,28 +388,13 @@ export default function ReportsPage() {
 
       {filteredData && !isLoading && (
         <div className="printable-area space-y-6">
-            {/* Patient Summary Card */}
-            <Card className="printable-card print-section print-summary">
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row items-start gap-4">
-                    <Avatar className="h-20 w-20 border">
-                        <AvatarImage src={filteredData.patient.avatarUrl} alt={filteredData.patient.name} />
-                        <AvatarFallback>{filteredData.patient.name.split(' ').map(n=>n[0]).join('')}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                        <CardTitle className="text-2xl">{filteredData.patient.name}</CardTitle>
-                        <CardDescription>
-                            {age !== null ? `${age} years old` : 'Age not specified'}
-                            {filteredData.patient.disabilityType && ` • ${filteredData.patient.disabilityType}`}
-                        </CardDescription>
-                         <div className="mt-4 text-sm text-muted-foreground space-y-1">
-                            <p><strong>Care Needs:</strong> {filteredData.patient.careNeeds || 'N/A'}</p>
-                            <p><strong>Emergency Contact:</strong> {filteredData.patient.emergencyContact?.name} ({filteredData.patient.emergencyContact?.relation}) - {filteredData.patient.emergencyContact?.phone}</p>
-                        </div>
-                    </div>
-                </div>
-              </CardHeader>
-            </Card>
+            <div className="print-section print-summary">
+                <h1 className="text-2xl font-bold tracking-tight font-headline mb-2">{filteredData.patient.name}</h1>
+                <p className="text-muted-foreground">
+                    Report for period: {dateRange.from ? format(new Date(dateRange.from), 'MMM d, yyyy') : 'N/A'} to {dateRange.to ? format(new Date(dateRange.to), 'MMM d, yyyy') : 'N/A'}
+                </p>
+                <Separator className="my-4"/>
+            </div>
 
             {/* Daily Records Card */}
             <Card className="printable-card print-section print-care">
@@ -533,5 +520,7 @@ export default function ReportsPage() {
       )}
     </div>
   );
+
+    
 
     
