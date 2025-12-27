@@ -44,6 +44,12 @@ service cloud.firestore {
       // Staff profiles are created via an API route, not directly by users signing up.
       // Admins can update any profile (e.g., to change roles or display names).
       allow update: if isAdmin() || (isOwner(userId) && request.resource.data.role == resource.data.role);
+
+      // --- Notifications Subcollection ---
+      match /notifications/{notificationId} {
+        // A user can read and manage their own notifications.
+        allow read, write, delete: if isOwner(userId);
+      }
     }
 
     // --- Patient Rules ---

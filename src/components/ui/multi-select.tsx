@@ -206,7 +206,7 @@ export function MultiSelect({
       <PopoverContent
         align="start"
         sideOffset={4}
-        className="w-[--radix-popover-trigger-width] p-0 z-50"
+        className="w-[--radix-popover-trigger-width] p-0 z-[100]"
         onInteractOutside={(e) => {
           // Allow clicking inside the popover
           e.preventDefault();

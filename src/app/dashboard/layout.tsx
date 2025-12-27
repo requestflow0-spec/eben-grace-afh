@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -50,6 +51,7 @@ import {
 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useTheme } from 'next-themes';
+import { Notifications } from '@/components/Notifications';
 
 const allNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', roles: ['admin', 'staff'] },
@@ -141,8 +143,11 @@ export default function DashboardLayout({
           <div className="flex-1">
             {/* Can add breadcrumbs or page title here */}
           </div>
-          <div className="hidden md:block">
-            <UserDropdown />
+          <div className="flex items-center gap-2">
+            <Notifications />
+            <div className="hidden md:block">
+              <UserDropdown />
+            </div>
           </div>
         </header>
         <main className="flex-1 flex-col p-4 sm:p-6 lg:p-8">{children}</main>

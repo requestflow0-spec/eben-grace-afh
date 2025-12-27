@@ -64,6 +64,21 @@
             "notes": { "type": "string", "description": "Additional notes about the patient's sleep." }
         },
         "required": ["id", "patientId", "log_date", "hours"]
+    },
+    "Notification": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Notification",
+      "type": "object",
+      "description": "Represents an in-app notification for a user.",
+      "properties": {
+        "id": { "type": "string", "description": "Unique identifier for the notification." },
+        "title": { "type": "string", "description": "The title of the notification." },
+        "description": { "type": "string", "description": "A brief description of the notification content." },
+        "date": { "type": "string", "description": "The timestamp when the notification was created.", "format": "date-time" },
+        "read": { "type": "boolean", "description": "Whether the user has read the notification." },
+        "href": { "type": "string", "description": "An optional URL to navigate to when the notification is clicked." }
+      },
+      "required": ["id", "title", "date", "read"]
     }
   },
   "auth": {
@@ -86,6 +101,14 @@
             }
           },
           "description": "Stores basic user profile information and role."
+        }
+      },
+      {
+        "path": "/users/{userId}/notifications/{notificationId}",
+        "definition": {
+          "entityName": "Notification",
+          "schema": { "$ref": "#/backend/entities/Notification" },
+          "description": "Stores notifications for a specific user."
         }
       },
       {
