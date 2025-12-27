@@ -27,9 +27,10 @@ import {
   FilePlus,
   Sparkles,
   Loader2,
+  Check,
 } from 'lucide-react';
 import { format, differenceInYears, parseISO, addDays, subDays, isSameDay } from 'date-fns';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm, useWatch, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
@@ -73,14 +74,16 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 import { useRole } from '@/hooks/useRole';
-import { MultiSelect } from '@/components/ui/multi-select';
 import { generateBehaviorComment } from '@/ai/flows/generate-behavior-comment';
 import { useToast } from '@/hooks/use-toast';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Checkbox } from '@/components/ui/checkbox';
 
 
 type SleepStatus = 'awake' | 'asleep';
 const HOURS = Array.from({ length: 24 }, (_, i) => i);
+
+const BEHAVIOR_OPTIONS = ["Eloping", "Wandering", "Rummaging", "Verbal Aggression", "Physical Aggression", "Self-harm"];
 
 function LogBehaviorDialog() {
   const [open, setOpen] = useState(false);
@@ -130,7 +133,7 @@ function LogBehaviorDialog() {
       }
       
       const result = await generateBehaviorComment({
-        behavior: behavior || [], // Ensure behavior is an array
+        behavior: behavior,
         intensity,
         activity,
         setting,
@@ -166,7 +169,7 @@ function LogBehaviorDialog() {
           Log Behavior
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>Add Behavior Event</DialogTitle>
         </DialogHeader>
@@ -189,18 +192,67 @@ function LogBehaviorDialog() {
                     )} />
                 </div>
                 <div className="grid grid-cols-2 gap-4">
-                    <FormField control={form.control} name="behavior" render={({ field }) => (
+                    <FormField
+                      control={form.control}
+                      name="behavior"
+                      render={({ field }) => (
                         <FormItem>
-                            <FormLabel>Behavior Type</FormLabel>
-                             <MultiSelect
-                                options={["Eloping", "Wandering", "Rummaging", "Verbal Aggression", "Physical Aggression", "Self-harm"]}
-                                selected={field.value}
-                                onChange={field.onChange}
-                                placeholder="Select behavior(s)..."
-                            />
-                            <FormMessage />
+                          <FormLabel>Behavior Type</FormLabel>
+                          <Dialog>
+                            <DialogTrigger asChild>
+                              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                                {field.value.length > 0
+                                  ? field.value.join(', ')
+                                  : "Select behavior(s)..."}
+                              </Button>
+                            </DialogTrigger>
+                            <DialogContent>
+                              <DialogHeader>
+                                <DialogTitle>Select Behaviors</DialogTitle>
+                              </DialogHeader>
+                              <div className="grid grid-cols-2 gap-4 py-4">
+                                {BEHAVIOR_OPTIONS.map((option) => (
+                                  <FormField
+                                    key={option}
+                                    control={form.control}
+                                    name="behavior"
+                                    render={({ field: checkboxField }) => {
+                                      return (
+                                        <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                                          <FormControl>
+                                            <Checkbox
+                                              checked={checkboxField.value?.includes(option)}
+                                              onCheckedChange={(checked) => {
+                                                return checked
+                                                  ? checkboxField.onChange([...checkboxField.value, option])
+                                                  : checkboxField.onChange(
+                                                      checkboxField.value?.filter(
+                                                        (value) => value !== option
+                                                      )
+                                                    )
+                                              }}
+                                            />
+                                          </FormControl>
+                                          <FormLabel className="font-normal">
+                                            {option}
+                                          </FormLabel>
+                                        </FormItem>
+                                      )
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                               <DialogFooter>
+                                <DialogClose asChild>
+                                  <Button type="button">Done</Button>
+                                </DialogClose>
+                              </DialogFooter>
+                            </DialogContent>
+                          </Dialog>
+                          <FormMessage />
                         </FormItem>
-                    )} />
+                      )}
+                    />
                      <FormField control={form.control} name="intensity" render={({ field }) => (
                         <FormItem>
                             <FormLabel>Intensity</FormLabel>
@@ -1115,3 +1167,4 @@ export default function PatientDetailPage({
 
 
     
+
