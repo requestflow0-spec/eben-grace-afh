@@ -1072,8 +1072,8 @@ export default function PatientDetailPage({
                     {tasks && tasks.length > 0 ? (
                       <div className="space-y-2">
                         {tasks.map(task => {
-                          const staffMember = staffData?.find(s => s.id === task.createdBy.uid);
-                          const creatorName = staffMember?.name || task.createdBy.name;
+                          const staffMember = task.createdBy ? staffData?.find(s => s.id === task.createdBy.uid) : null;
+                          const creatorName = staffMember?.name || task.createdBy?.name || 'Unknown Staff';
                           return (
                             <div
                               key={task.id}
