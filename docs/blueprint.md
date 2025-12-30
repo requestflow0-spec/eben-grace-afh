@@ -1,4 +1,4 @@
-# **App Name**: CareHub Pro
+# **App Name**: Eben Grace AFH
 
 ## Core Features:
 
