@@ -90,7 +90,7 @@ function PatientCard({ patient }: { patient: Patient }) {
     </Link>
   );
 }
-
+ 
 
 /* -------------------------------------------------------------------------- */
 /*                                MAIN PAGE                                   */
